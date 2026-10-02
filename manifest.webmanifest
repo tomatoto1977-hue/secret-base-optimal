@@ -1,9 +1,1 @@
-{
-  "name":"秘密基地・最適版",
-  "short_name":"秘密基地",
-  "start_url":"./",
-  "display":"standalone",
-  "background_color":"#f4f5f9",
-  "theme_color":"#6366f1",
-  "lang":"ja"
-}
+{"name":"秘密基地・最適版","short_name":"秘密基地","start_url":"./","display":"standalone","background_color":"#111016","theme_color":"#17141b","lang":"ja","description":"秘密基地の世界観とAI開発室の工程管理を統合した作業室"}
