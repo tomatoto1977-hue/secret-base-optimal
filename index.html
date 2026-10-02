@@ -66,7 +66,7 @@ async function generateVideo(command){
  const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:8500000}:{videoBitsPerSecond:8500000});const chunks=[];
  rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
  const done=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=reject});rec.start(250);
- const start=performance.now(),duration=30000,lesson=skillContext();
+ const start=performance.now(),duration=30000,lesson=skillContext(),skillLevel=Math.min(5,1+Math.floor(skill.runs/2)),motion=0.10+skillLevel*0.025;
  const scenes=[
   {a:0,b:3,tag:'HOOK',title:'その支出、本当に必要？',sub:'知らないうちに毎月払っているものを確認'},
   {a:3,b:9,tag:'CHECK',title:'まず「使っている？」',sub:'契約中のサービスを1つだけ確認'},
@@ -85,12 +85,12 @@ async function generateVideo(command){
   ctx.fillStyle='#f5dfb7';ctx.font='700 34px sans-serif';ctx.fillText('秘密基地・最適版',60,90);
   ctx.fillStyle='#65cf96';ctx.font='800 27px sans-serif';ctx.fillText('LEARNING VIDEO  /  '+String(skill.runs+1).padStart(2,'0'),60,138);
   ctx.fillStyle='#fff';ctx.font='900 34px sans-serif';rr(60,178,220,58,29);ctx.fillStyle='#17141b';ctx.fillText(scene.tag,88,219);
-  const titleY=330+Math.sin(local*Math.PI)*12;ctx.fillStyle='#fff';ctx.font='900 66px sans-serif';
+  const titleY=330+Math.sin(local*Math.PI)*12*skillLevel;ctx.fillStyle='#fff';ctx.font='900 66px sans-serif';
   wrap(scene.title,9).slice(0,2).forEach((w,j)=>ctx.fillText(w,60,titleY+j*82));
-  const iw=760,ih=760,zoom=1.08+0.10*Math.sin(local*Math.PI);let sx=(img.width-iw/zoom)/2,sy=(img.height-ih/zoom)/2;
+  const iw=760,ih=760,zoom=1.08+motion*Math.sin(local*Math.PI);let sx=(img.width-iw/zoom)/2,sy=(img.height-ih/zoom)/2;
   ctx.save();ctx.globalAlpha=.98;rr(110,575,860,760,42);ctx.clip();ctx.drawImage(img,sx,sy,iw/zoom,ih/zoom,110+(860-iw)/2,575+(760-ih)/2,iw,ih);ctx.restore();
-  ctx.fillStyle='#211d29';rr(60,1390,960,310,36);ctx.fillStyle='#efbb62';ctx.font='800 30px sans-serif';ctx.fillText(scene.tag==='HOOK'?'まず気づく':scene.tag==='CTA'?'保存して実行':'次の一歩',92,1450);
-  ctx.fillStyle='#fff';ctx.font='700 38px sans-serif';wrap(scene.sub,22).slice(0,3).forEach((w,j)=>ctx.fillText(w,92,1515+j*52));
+  if(skillLevel>=2){ctx.globalAlpha=.18;for(let k=0;k<skillLevel;k++){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(60,260+k*18);ctx.lineTo(1020,260+k*18+Math.sin(sec+k)*22);ctx.stroke()}ctx.globalAlpha=1}if(skillLevel>=3){ctx.fillStyle='#efbb62';ctx.font='800 22px sans-serif';ctx.fillText('改善レベル '+skillLevel,780,138)}if(skillLevel>=4){for(let k=0;k<skillLevel;k++){ctx.fillStyle='#ffffff12';rr(70+k*190,1210+(k%2)*38,150,54,27);ctx.fillStyle='#fff';ctx.font='600 18px sans-serif';ctx.fillText(['HOOK','VALUE','ACTION','PROOF','CTA'][k],105+k*190,1244+(k%2)*38)}}ctx.fillStyle='#211d29';rr(60,1390,960,310,36);ctx.fillStyle='#efbb62';ctx.font='800 30px sans-serif';ctx.fillText(scene.tag==='HOOK'?'まず気づく':scene.tag==='CTA'?'保存して実行':'次の一歩',92,1450);
+  ctx.fillStyle='#fff';ctx.font='700 38px sans-serif';if(skillLevel>=3){ctx.fillStyle='#efbb62';ctx.font='800 24px sans-serif';ctx.fillText('LESSON → '+(skill.lessons[skill.lessons.length-1]||'今回の構成を基準化').slice(0,38),92,1575)}ctx.fillStyle='#fff';ctx.font='700 38px sans-serif';wrap(scene.sub,22).slice(0,3).forEach((w,j)=>ctx.fillText(w,92,1515+j*52));
   ctx.fillStyle='#91d5b0';ctx.font='600 22px sans-serif';ctx.fillText('人間承認：公開・送信は停止',60,1785);
   ctx.fillStyle='#aaa1b2';ctx.font='19px sans-serif';ctx.fillText('品質改善を累積｜'+skillContext().slice(0,55),60,1828);
   ctx.fillStyle='#ffffff35';rr(60,1860,960,8,4);ctx.fillStyle='#65cf96';rr(60,1860,960*t,8,4);
