@@ -28,8 +28,9 @@ function run(){
  const last=history[history.length-1]||{};
  const improve=last.improve||"前回評価なし。最低品質基準を初期基準として適用。";
  const keep=last.worked||"独自内容、明瞭なフック、読みやすい字幕設計を維持。";
+ const command=document.getElementById("cmd").value;
  const out=[
- "目的: "+document.getElementById("cmd").value+"\n成功条件: 独自内容で実制作へ移せる設計。\n今回の改善優先: "+improve,
+ "目的: "+command+"\n成功条件: 独自内容で実制作へ移せる設計。\n今回の改善優先: "+improve,
  "市場: 短時間で具体的な気づきを与える構造を優先。未確認の数値は断定しない。",
  "戦略: 冒頭2秒で価値提示。1カット1メッセージ。既存動画の台詞・構図・素材はコピーしない。",
  "企画: 0-2秒フック→2-8秒問題→8-30秒具体例→30-55秒比較→55-75秒実践→75-88秒要点→88-93.7秒CTA。2〜6秒ごとに画面変化。",
@@ -39,7 +40,7 @@ function run(){
  "監査: 人物利用なし、権利不明素材なし、転載なし、未確認情報を断定しない。安全な音源だけ。",
  "動画: 9:16 / 1080x1920 / 30fps想定。白字幕+黒フチ、高コントラスト。音声/BGM/効果音を分離。",
  "編集: 2秒以内フック、2〜6秒ごとに変化、重要語を字幕強調、CTA、ウォーターマークなし。",
- "完成成果物: 約93.7秒 / 9:16 / 1080x1920\n前回改善: "+improve+"\n残す: "+keep+"\n自己検査: フック2秒=OK / 2〜6秒変化=OK / 白字幕+黒フチ=OK / 権利安全音声=OK / CTA=OK / ウォーターマークなし=OK\n\nC検証モードです。実MP4を生成したとは扱いません。"
+ "完成成果物: 約93.7秒 / 9:16 / 1080x1920\n制作指示: "+command+"\n前回改善: "+improve+"\n残す: "+keep+"\n自己検査: フック2秒=OK / 2〜6秒変化=OK / 白字幕+黒フチ=OK / 権利安全音声=OK / CTA=OK / ウォーターマークなし=OK\n\nC検証モードです。実MP4を生成したとは扱いません。"
  ];
  document.getElementById("agents").innerHTML=roles.map(r=>'<div class="agent"><span class="ok">● 完了</span> '+r+'</div>').join("");
  document.getElementById("out").textContent=out[10];
