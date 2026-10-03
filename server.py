@@ -1,11 +1,11 @@
-import os,json,urllib.request,uuid,re
+import os,json,urllib.request,urllib.error,uuid,re,time
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from datetime import datetime,timezone
 
 PORT=int(os.environ.get("PORT","10000"))
 MODEL=os.environ.get("OPENAI_MODEL","gpt-5.6-luna")
 KEY=os.environ.get("OPENAI_API_KEY","").strip()
-VERSION="3.1.0"
+VERSION="3.1.1"
 
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
 LEARNING=[]
@@ -78,15 +78,42 @@ ROLE_TASKS=[
 ]
 
 def ask(prompt):
- body=json.dumps({"model":MODEL,"input":prompt,"max_output_tokens":700}).encode()
+ body=json.dumps({"model":MODEL,"input":prompt,"max_output_tokens":450}).encode()
  req=urllib.request.Request("https://api.openai.com/v1/responses",data=body,headers={"Authorization":"Bearer "+KEY,"Content-Type":"application/json"})
- with urllib.request.urlopen(req,timeout=120) as r:data=json.load(r)
- out=data.get("output_text","")
- if not out:
-  for it in data.get("output",[]):
-   for p in it.get("content",[]):
-    if p.get("type")=="output_text":out+=p.get("text","")
- return out.strip()
+ last_error=None
+ for attempt in range(4):
+  try:
+   with urllib.request.urlopen(req,timeout=120) as r:data=json.load(r)
+   out=data.get("output_text","")
+   if not out:
+    for it in data.get("output",[]):
+     for p in it.get("content",[]):
+      if p.get("type")=="output_text":out+=p.get("text","")
+   return out.strip()
+  except urllib.error.HTTPError as e:
+   raw=e.read().decode("utf-8","replace")
+   try:
+    detail=json.loads(raw).get("error",{})
+   except Exception:
+    detail={}
+   code=str(detail.get("code") or "")
+   message=str(detail.get("message") or raw[:500])
+   last_error=(e.code,code,message)
+   if e.code != 429:
+    raise RuntimeError(f"OpenAI HTTP {e.code}: {message}")
+   if code in ("insufficient_quota","billing_hard_limit_reached"):
+    raise RuntimeError("OpenAI APIの利用上限/残高により429が発生しています。RenderのAPIキー自体は認識されていますが、利用可能なAPIクレジットまたは上限設定を確認してください。")
+   wait=min(8,2**attempt)
+   retry_after=e.headers.get("Retry-After")
+   if retry_after:
+    try: wait=max(wait,min(30,int(float(retry_after))))
+    except Exception: pass
+   time.sleep(wait)
+  except Exception as e:
+   raise RuntimeError(f"OpenAI接続エラー: {e}")
+ if last_error:
+  raise RuntimeError(f"OpenAI 429: {last_error[2]}")
+ raise RuntimeError("OpenAI応答を取得できませんでした")
 
 def run_pipeline(command,learning):
  if not KEY: raise RuntimeError("OPENAI_API_KEYが未設定のため実AIを実行できません")
@@ -106,6 +133,7 @@ def run_pipeline(command,learning):
 共通安全ルール：特定人物、とくに芸能人の無断利用禁止。権利不明素材禁止。トレンドは構造だけ学習。外部投稿・ログイン・金銭操作禁止。未確認情報は断定しない。
 重要：参考動画そのものを転載・模倣・再利用せず、品質特性だけを抽出する。最終成果物は独自内容にする。"""
   out=ask(prompt)
+  time.sleep(1.0)
   if not out: raise RuntimeError(role+"の出力が空です")
   outputs.append((role,out));trace.append({"agent":role,"status":"completed","output_summary":out[:220]});previous=out
  artifact=outputs[-1][1]
