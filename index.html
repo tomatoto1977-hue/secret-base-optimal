@@ -31,7 +31,7 @@ function setAgent(i,state,task,pct){const a=$('a'+i);if(!a)return;a.className='a
 async function health(){try{const r=await fetch(API+'/health');const j=await r.json();$('health').textContent=j.ai_configured?'● 実AI接続済み v'+j.version:'● 実AI未接続';$('health').className='health '+(j.ai_configured?'ok':'bad')}catch(e){$('health').textContent='● API接続失敗';$('health').className='health bad'}}
 async function loadMemory(){try{const r=await fetch(API+'/learning');const j=await r.json();$('memory').innerHTML=(j.items||[]).slice(-12).reverse().map(x=>'<div><b>'+new Date(x.created_at).toLocaleString('ja-JP')+'</b><br><span class="tag">総合 '+(x.overall||'—')+'/5</span><span class="tag">'+(x.run_id||'')+'</span><br>'+(x.improve||x.failure||'評価なし')+'</div>').join('')||'まだ学習履歴はありません。'}catch(e){$('memory').textContent='学習APIに接続できません。'}}
 async function run(){if(running)return;running=true;$('run').disabled=true;$('run').textContent='実行中…';$('artifact').textContent='';$('trace').textContent='';$('score').textContent='—';$('gate').textContent='実処理中';renderAgents();const command=$('command').value.trim()||'新しい動画制作を企画してください';try{
- const pre=await fetch(API+'/learning').then(r=>r.json());const memory=pre.items||[];
+ const memory=JSON.parse(localStorage.getItem('sb3_learning')||'[]');
  for(let i=0;i<11;i++)setAgent(i,'work',i===0?'目的を整理・学習を取得':names[i][0]+'の実処理を待機',5);
  const res=await fetch(API+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command,learning:memory.slice(-12)})});
  const j=await res.json();if(!j.ok)throw new Error(j.error||'実行失敗');lastRunId=j.run_id;
