@@ -18,7 +18,7 @@ button:active{transform:scale(.99)}button:disabled{opacity:.65}
 <h1>🏡 秘密基地・C検証モード</h1>
 <div class="box">
 <b>無課金で本体を検証</b>
-<p>11工程、品質基準、評価→次回改善を検証します。実MP4は生成しません。</p>
+<p>11工程を通して「実制作へ渡せる企画・台本・カット割り」まで検証します。実MP4は生成しません。</p>
 <textarea id="cmd" autocomplete="off">TikTok用の動画を作って</textarea>
 <button id="go" type="button" onclick="window.runCValidation()">C検証を実行</button>
 <div id="status" class="status">待機中：ボタンを押すと検証を開始します。</div>
@@ -31,9 +31,25 @@ button:active{transform:scale(.99)}button:disabled{opacity:.65}
 (function(){
 "use strict";
 const roles=["統括","市場調査","競争戦略","企画","情報収集","予算","文章化","エビデンス","動画制作","編集","実装"];
-function getHistory(){
-try{const h=JSON.parse(localStorage.getItem("sb3_learning")||"[]");return Array.isArray(h)?h:[]}
-catch(e){return []}
+function getHistory(){try{const h=JSON.parse(localStorage.getItem("sb3_learning")||"[]");return Array.isArray(h)?h:[]}catch(e){return[]}}
+function buildArtifact(command,improve,keep){
+const topic=command||"TikTok用の動画";
+return [
+"【1 統括】\n目的: "+topic+"\n成功条件: 視聴者が冒頭で価値を理解し、最後まで見て次の行動を選べる設計。",
+"【2 市場調査】\n方向性: 短時間で「具体的な気づき→実践」に到達する構成。未確認の流行・数値は断定せず、公開前に一次情報または公式情報で確認。",
+"【3 競争戦略】\n差別化: 他動画の台詞・構図・素材をコピーせず、独自の切り口・例・図解で構成。人物名や芸能人を企画の軸にしない。",
+"【4 企画】\nタイトル案: 「知らないままにしないための"+topic+"」\n構成: 0-2秒フック→2-8秒問題提示→8-30秒具体例→30-55秒比較/判断軸→55-75秒実践手順→75-88秒要点→88-93.7秒CTA。",
+"【5 情報収集】\n必要確認: 数字・制度・商品仕様・引用・画像・音源。出典を確認できない情報は採用しない。権利不明素材は使用しない。",
+"【6 予算】\n無料・権利確認済み素材、オリジナル図解、生成可能な音声を優先。有料操作・金銭操作は実行しない。",
+"【7 文章化】\n台本:\n0-2秒「これ、最初に知っておくと迷いません。」\n2-8秒「"+topic+"で重要なのは、最初に判断軸を決めること。」\n8-30秒「①目的を決める ②必要な情報だけ集める ③比較して選ぶ。」\n30-55秒「見るポイントを3つに絞り、根拠が確認できるものだけ残します。」\n55-75秒「今日やることは、メモ→確認→1つ実践、の3ステップ。」\n75-88秒「迷ったら、情報の出どころと権利を先に確認。」\n88-93.7秒「役立ったら保存。次回も実践できる内容を紹介します。」",
+"【8 エビデンス】\n監査: 人物・芸能人依存なし／転載なし／権利不明素材なし／未確認情報の断定なし。公開前に出典・利用条件を人間が最終確認。",
+"【9 動画制作】\n仕様: 9:16 / 1080x1920 / 30fps想定。画面は主題を大きく表示。音声・BGM・効果音を分離。字幕は白＋黒フチ、高コントラスト、安全領域内。",
+"【10 編集】\nカット割り: 0-2フック、2-8問題、8-30手順、30-55比較、55-75実践、75-88要点、88-93.7CTA。2〜6秒を目安に画面変化。ウォーターマークなし。",
+"【11 実装】\n納品セット: タイトル案／台本／カット割り／字幕指示／音声指示／素材・権利チェック／CTA／品質ゲート。実MP4はC検証では生成しない。",
+"【品質ゲート】\nフック2秒=OK\n2〜6秒ごとの変化=OK\n9:16・1080x1920=OK\n白字幕＋黒フチ=OK\nCTA=OK\n権利安全=要人間確認\nウォーターマークなし=OK",
+"【学習反映】\n前回改善: "+improve+"\n維持: "+keep+"\n次回もこの改善指示を企画・台本・編集の全工程に反映する。",
+"\n※C検証モード：これは実制作へ渡すための詳細設計を検証する成果物です。AIが実際に外部調査・MP4生成・投稿を行った結果ではありません。"
+].join("\n\n");
 }
 window.runCValidation=function(){
 const button=document.getElementById("go"),status=document.getElementById("status");
@@ -43,16 +59,14 @@ const history=getHistory(),last=history[history.length-1]||{};
 const improve=last.improve||"前回評価なし。最低品質基準を初期基準として適用。";
 const keep=last.worked||"独自内容、明瞭なフック、読みやすい字幕設計を維持。";
 const command=(document.getElementById("cmd").value||"TikTok用の動画を作って").trim();
-const artifact="完成成果物: 約93.7秒 / 9:16 / 1080x1920\n制作指示: "+command+"\n前回改善: "+improve+"\n残す: "+keep+"\n自己検査: フック2秒=OK / 2〜6秒変化=OK / 白字幕+黒フチ=OK / 権利安全音声=OK / CTA=OK / ウォーターマークなし=OK\n\nC検証モードです。実MP4を生成したとは扱いません。";
+const artifact=buildArtifact(command,improve,keep);
 document.getElementById("agents").innerHTML=roles.map(function(r){return '<div class="agent"><span class="ok">● 完了</span> '+r+'</div>'}).join("");
 document.getElementById("out").textContent=artifact;
 document.getElementById("learn").textContent="過去評価: "+history.length+"件\n今回の改善指示: "+improve+"\n今回維持する内容: "+keep;
-try{localStorage.setItem("sb3_c_last",JSON.stringify({at:new Date().toISOString(),artifact:artifact}))}catch(e){}
-status.className="status";status.textContent="✅ 検証完了：11/11工程";
+try{localStorage.setItem("sb3_c_last",JSON.stringify({at:new Date().toISOString(),command:command,artifact:artifact}))}catch(e){}
+status.className="status";status.textContent="✅ 検証完了：11/11工程・詳細成果物生成";
 window.scrollTo({top:0,behavior:"smooth"});
-}catch(e){
-status.className="status err";status.textContent="⚠️ 実行エラー: "+(e&&e.message?e.message:"不明なエラー");
-}finally{button.disabled=false}
+}catch(e){status.className="status err";status.textContent="⚠️ 実行エラー: "+(e&&e.message?e.message:"不明なエラー")}finally{button.disabled=false}
 };
 })();
 </script>
