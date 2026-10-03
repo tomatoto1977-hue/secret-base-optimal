@@ -13,7 +13,7 @@ header{display:flex;justify-content:space-between;gap:10px;align-items:center}.b
 <div class="grid"><main class="room"><h2>🪵 実行エージェント</h2><div class="agents" id="agents"></div></main>
 <aside class="side">
 <section class="panel"><h3>📦 実成果物</h3><div id="artifactMeta" class="small">まだ実行されていません</div><pre id="artifact" class="artifact">—</pre></section>
-<section class="panel"><h3>🧪 実行品質</h3><div id="score" class="score">—</div><div id="gate" class="small" style="text-align:center">実行待ち</div><div id="trace" class="small" style="margin-top:7px"></div></section>
+<section class="panel"><h3>🎬 参考動画・最低品質基準</h3><div id="benchmark" class="small">読み込み中…</div></section><section class="panel"><h3>🧪 実行品質</h3><div id="score" class="score">—</div><div id="gate" class="small" style="text-align:center">実行待ち</div><div id="trace" class="small" style="margin-top:7px"></div></section>
 <section class="panel"><h3>📝 成果物評価</h3><div class="small">保存した評価はサーバーへ送信し、次回生成の入力データになります。</div>
 <input id="evTheme" placeholder="今回のテーマ" style="margin-top:6px"><div class="row" style="margin-top:6px">
 <select id="evOverall"><option value="0">総合評価</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
@@ -28,10 +28,10 @@ const names=[['統括','さとる'],['市場調査','りょう'],['競争戦略'
 const $=id=>document.getElementById(id);let lastRunId=null,running=false;
 function renderAgents(){ $('agents').innerHTML=names.map((x,i)=>'<div class="agent" id="a'+i+'"><span class="state">待機</span><div class="role">'+x[0]+'</div><div class="name">'+x[1]+'</div><div class="task">未実行</div><div class="bar"><i></i></div></div>').join('')}
 function setAgent(i,state,task,pct){const a=$('a'+i);if(!a)return;a.className='agent '+state;a.querySelector('.state').textContent=state==='work'?'実行中':state==='done'?'完了':state==='fail'?'停止':'待機';a.querySelector('.task').textContent=task;a.querySelector('.bar i').style.width=pct+'%'}
-async function health(){try{const r=await fetch(API+'/health');const j=await r.json();$('health').textContent=j.ai_configured?'● 実AI接続済み v'+j.version:'● 実AI未接続';$('health').className='health '+(j.ai_configured?'ok':'bad')}catch(e){$('health').textContent='● API接続失敗';$('health').className='health bad'}}
+async function health(){try{const r=await fetch(API+'/health');const j=await r.json();$('health').textContent=j.ai_configured?'● 実AI接続済み v'+j.version:'● 実AI未接続';$('health').className='health '+(j.ai_configured?'ok':'bad');if(j.benchmark)$('benchmark').innerHTML='<b>9:16 / 1080×1920</b><br>冒頭2秒フック／2〜6秒程度の画面変化／白字幕＋黒フチ／権利安全な音声／CTA／ウォーターマークなし';}catch(e){$('health').textContent='● API接続失敗';$('health').className='health bad';$('benchmark').textContent='基準APIに接続できません。'}}
 async function loadMemory(){try{const r=await fetch(API+'/learning');const j=await r.json();$('memory').innerHTML=(j.items||[]).slice(-12).reverse().map(x=>'<div><b>'+new Date(x.created_at).toLocaleString('ja-JP')+'</b><br><span class="tag">総合 '+(x.overall||'—')+'/5</span><span class="tag">'+(x.run_id||'')+'</span><br>'+(x.improve||x.failure||'評価なし')+'</div>').join('')||'まだ学習履歴はありません。'}catch(e){$('memory').textContent='学習APIに接続できません。'}}
 async function run(){if(running)return;running=true;$('run').disabled=true;$('run').textContent='実行中…';$('artifact').textContent='';$('trace').textContent='';$('score').textContent='—';$('gate').textContent='実処理中';renderAgents();const command=$('command').value.trim()||'新しい動画制作を企画してください';try{
- const memory=JSON.parse(localStorage.getItem('sb3_learning')||'[]');
+ let memory=[];try{memory=JSON.parse(localStorage.getItem('sb3_learning')||'[]');if(!Array.isArray(memory))memory=[];}catch(e){memory=[]}
  for(let i=0;i<11;i++)setAgent(i,'work',i===0?'目的を整理・学習を取得':names[i][0]+'の実処理を待機',5);
  const res=await fetch(API+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command,learning:memory.slice(-12)})});
  const j=await res.json();if(!j.ok)throw new Error(j.error||'実行失敗');lastRunId=j.run_id;
