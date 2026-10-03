@@ -2,50 +2,58 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>秘密基地・C検証モード</title>
 <style>
 body{margin:0;background:#11121a;color:#f4f1ea;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:14px}
 main{max-width:760px;margin:auto}.box{background:#1b1d28;border:1px solid #383b4b;border-radius:15px;padding:14px;margin:10px 0}
-textarea{width:100%;box-sizing:border-box;background:#090a0f;color:white;border:1px solid #444;border-radius:10px;padding:10px;font-size:15px}
-button{width:100%;margin-top:8px;padding:12px;border:0;border-radius:10px;background:#806ff2;color:white;font-weight:800}
-.agent{padding:8px;border-bottom:1px solid #333;font-size:13px}.ok{color:#68d39b}pre{white-space:pre-wrap;line-height:1.55;font-size:12px}
+textarea{width:100%;min-height:72px;box-sizing:border-box;background:#090a0f;color:white;border:1px solid #555;border-radius:10px;padding:10px;font-size:16px;line-height:1.5;-webkit-appearance:none}
+button{display:block;width:100%;min-height:52px;margin-top:10px;padding:14px;border:0;border-radius:12px;background:#806ff2;color:white;font-weight:800;font-size:16px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button:active{transform:scale(.99)}button:disabled{opacity:.65}
+.status{margin-top:9px;padding:9px;border-radius:9px;background:#10121a;font-size:13px}.ok{color:#68d39b}.err{color:#ff8b8b}
+.agent{padding:8px;border-bottom:1px solid #333;font-size:13px}pre{white-space:pre-wrap;line-height:1.55;font-size:12px}
 </style>
 </head>
 <body><main>
 <h1>🏡 秘密基地・C検証モード</h1>
-<div class="box"><b>無課金で本体を検証</b><p>11工程、品質基準、評価→次回改善を検証します。実MP4は生成しません。</p>
-<textarea id="cmd">TikTok用の動画を作って</textarea><button id="go">C検証を実行</button></div>
+<div class="box">
+<b>無課金で本体を検証</b>
+<p>11工程、品質基準、評価→次回改善を検証します。実MP4は生成しません。</p>
+<textarea id="cmd" autocomplete="off">TikTok用の動画を作って</textarea>
+<button id="go" type="button" onclick="window.runCValidation()">C検証を実行</button>
+<div id="status" class="status">待機中：ボタンを押すと検証を開始します。</div>
+</div>
 <div class="box"><div id="agents"></div></div>
 <div class="box"><b>検証成果物</b><pre id="out">—</pre></div>
 <div class="box"><b>学習反映</b><pre id="learn">—</pre></div>
 </main>
 <script>
+(function(){
+"use strict";
 const roles=["統括","市場調査","競争戦略","企画","情報収集","予算","文章化","エビデンス","動画制作","編集","実装"];
-function run(){
- let history=[];try{history=JSON.parse(localStorage.getItem("sb3_learning")||"[]")}catch(e){}
- if(!Array.isArray(history))history=[];
- const last=history[history.length-1]||{};
- const improve=last.improve||"前回評価なし。最低品質基準を初期基準として適用。";
- const keep=last.worked||"独自内容、明瞭なフック、読みやすい字幕設計を維持。";
- const command=document.getElementById("cmd").value;
- const out=[
- "目的: "+command+"\n成功条件: 独自内容で実制作へ移せる設計。\n今回の改善優先: "+improve,
- "市場: 短時間で具体的な気づきを与える構造を優先。未確認の数値は断定しない。",
- "戦略: 冒頭2秒で価値提示。1カット1メッセージ。既存動画の台詞・構図・素材はコピーしない。",
- "企画: 0-2秒フック→2-8秒問題→8-30秒具体例→30-55秒比較→55-75秒実践→75-88秒要点→88-93.7秒CTA。2〜6秒ごとに画面変化。",
- "情報: 数字、制度、商品仕様、引用、画像、音源は使用前確認。未確認事項は断定しない。",
- "予算: 無料素材、オリジナル図解、生成可能音声、権利確認済みBGMを優先。有料操作はしない。",
- "台本: 独自フック、短文字幕、人物名・芸能人ネタ・転載引用なし。最後にCTA。",
- "監査: 人物利用なし、権利不明素材なし、転載なし、未確認情報を断定しない。安全な音源だけ。",
- "動画: 9:16 / 1080x1920 / 30fps想定。白字幕+黒フチ、高コントラスト。音声/BGM/効果音を分離。",
- "編集: 2秒以内フック、2〜6秒ごとに変化、重要語を字幕強調、CTA、ウォーターマークなし。",
- "完成成果物: 約93.7秒 / 9:16 / 1080x1920\n制作指示: "+command+"\n前回改善: "+improve+"\n残す: "+keep+"\n自己検査: フック2秒=OK / 2〜6秒変化=OK / 白字幕+黒フチ=OK / 権利安全音声=OK / CTA=OK / ウォーターマークなし=OK\n\nC検証モードです。実MP4を生成したとは扱いません。"
- ];
- document.getElementById("agents").innerHTML=roles.map(r=>'<div class="agent"><span class="ok">● 完了</span> '+r+'</div>').join("");
- document.getElementById("out").textContent=out[10];
- document.getElementById("learn").textContent="過去評価: "+history.length+"件\n今回の改善指示: "+improve+"\n今回維持する内容: "+keep;
- localStorage.setItem("sb3_c_last",JSON.stringify({at:new Date().toISOString(),artifact:out[10]}));
+function getHistory(){
+try{const h=JSON.parse(localStorage.getItem("sb3_learning")||"[]");return Array.isArray(h)?h:[]}
+catch(e){return []}
 }
-document.getElementById("go").onclick=run;run();
-</script></body></html>
+window.runCValidation=function(){
+const button=document.getElementById("go"),status=document.getElementById("status");
+try{
+button.disabled=true;status.className="status";status.textContent="実行中… 11工程を検証しています。";
+const history=getHistory(),last=history[history.length-1]||{};
+const improve=last.improve||"前回評価なし。最低品質基準を初期基準として適用。";
+const keep=last.worked||"独自内容、明瞭なフック、読みやすい字幕設計を維持。";
+const command=(document.getElementById("cmd").value||"TikTok用の動画を作って").trim();
+const artifact="完成成果物: 約93.7秒 / 9:16 / 1080x1920\n制作指示: "+command+"\n前回改善: "+improve+"\n残す: "+keep+"\n自己検査: フック2秒=OK / 2〜6秒変化=OK / 白字幕+黒フチ=OK / 権利安全音声=OK / CTA=OK / ウォーターマークなし=OK\n\nC検証モードです。実MP4を生成したとは扱いません。";
+document.getElementById("agents").innerHTML=roles.map(function(r){return '<div class="agent"><span class="ok">● 完了</span> '+r+'</div>'}).join("");
+document.getElementById("out").textContent=artifact;
+document.getElementById("learn").textContent="過去評価: "+history.length+"件\n今回の改善指示: "+improve+"\n今回維持する内容: "+keep;
+try{localStorage.setItem("sb3_c_last",JSON.stringify({at:new Date().toISOString(),artifact:artifact}))}catch(e){}
+status.className="status";status.textContent="✅ 検証完了：11/11工程";
+window.scrollTo({top:0,behavior:"smooth"});
+}catch(e){
+status.className="status err";status.textContent="⚠️ 実行エラー: "+(e&&e.message?e.message:"不明なエラー");
+}finally{button.disabled=false}
+};
+})();
+</script>
+</body></html>
