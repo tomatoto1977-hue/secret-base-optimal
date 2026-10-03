@@ -9,7 +9,7 @@ header{display:flex;justify-content:space-between;gap:10px;align-items:center}.b
 @media(max-width:850px){.grid{grid-template-columns:1fr}.side{order:2}.agents{grid-template-columns:repeat(2,1fr)}}@media(max-width:480px){.app{padding:7px}.agents{gap:5px}.agent{min-height:115px;padding:7px}.brand h1{font-size:17px}}
 </style></head><body><div class="app">
 <header><div class="brand"><div class="logo">🏡</div><div><h1>秘密基地・最適版 3.0</h1><p>実処理だけを「作業」として表示する再構築版</p></div></div><div id="health" class="health">接続確認中…</div></header>
-<section class="command"><div class="cmd"><input id="command" placeholder="例：TikTok用の動画を作って下さい"><button id="run" class="btn">実行</button></div><div class="notice">⚠️ 実AIが接続されていない場合、成果物を捏造せず停止します。外部投稿・ログイン・金銭操作は行いません。人間承認が必須です。</div></section>
+<section class="command"><div class="cmd"><input id="command" placeholder="例：TikTok用の動画を作って下さい"><button id="run" class="btn">実行</button></div><div class="notice">⚠️ 実AIが接続されていない場合、成果物を捏造せず停止します。外部投稿・ログイン・金銭操作は行いません。人間承認が必須です。</div><div class="notice"><a href="/c-validation.html" style="color:#9d8cff;font-weight:800">🧪 無課金C検証モードを開く</a>　実AIの利用枠を消費せず、工程・品質・学習反映を検証できます。</div></section>
 <div class="grid"><main class="room"><h2>🪵 実行エージェント</h2><div class="agents" id="agents"></div></main>
 <aside class="side">
 <section class="panel"><h3>📦 実成果物</h3><div id="artifactMeta" class="small">まだ実行されていません</div><pre id="artifact" class="artifact">—</pre></section>
