@@ -68,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
   try:
    n=int(self.headers.get("Content-Length","0"));d=json.loads(self.rfile.read(n) or b"{}")
    if self.path=="/evaluate":
-    if not d.get("run_id") or d["run_id"] not in RUNS: raise ValueError("対象runがありません")
+    if not d.get("run_id"): raise ValueError("対象runがありません")
     item={"created_at":__import__("datetime").datetime.utcnow().isoformat()+"Z","run_id":d["run_id"],"theme":d.get("theme",""),"overall":int(d.get("overall",0)),"visual":int(d.get("visual",0)),"failure":d.get("failure",""),"improve":d.get("improve",""),"worked":d.get("worked","")}
     LEARNING.append(item);LEARNING[:]=LEARNING[-50:];reply(self,200,{"ok":True,"learning_registered":True,"next_generation_input":item});return
    if self.path!="/run":reply(self,404,{"ok":False});return
