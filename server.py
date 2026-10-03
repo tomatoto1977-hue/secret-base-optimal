@@ -8,6 +8,14 @@ def cors(h):
  h.send_header("Access-Control-Allow-Origin","*");h.send_header("Access-Control-Allow-Headers","Content-Type");h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
 def reply(h,c,o):
  b=json.dumps(o,ensure_ascii=False).encode();h.send_response(c);cors(h);h.send_header("Content-Type","application/json; charset=utf-8");h.send_header("Content-Length",str(len(b)));h.end_headers();h.wfile.write(b)
+def quality(a):
+ required=["purpose","research","strategy","plan","evidence","script","video","edit","implementation","improvement"]
+ checks={k:bool(a.get(k)) for k in required}
+ score=round(sum(checks.values())/len(checks)*100)
+ text=" ".join(str(v) for v in a.values()).lower()
+ safety=not any(x in text for x in ["芸能人の写真を使用","有名人の画像を使用","元動画を転載","無断転載"])
+ if not safety:score=min(score,70)
+ return {"score":score,"passed":score>=95,"checks":checks,"safety":safety}
 ROLE_TASKS=[
 ("統括","依頼の目的、成功条件、禁止事項を整理し、後続担当への作業仕様を作る。"),
 ("市場調査","目的に合う需要・トレンド・視聴者課題を整理する。根拠が必要な事実は要確認と明記する。"),
@@ -69,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
    learning=d.get("learning",[]) if isinstance(d.get("learning",[]),list) else []
    artifact,trace,q,alltext=run_pipeline(command,learning);rid=str(uuid.uuid4())[:12]
    RUNS[rid]={"command":command,"artifact":artifact,"quality":q}
-   reply(self,200,{"ok":True,"run_id":rid,"ai_used":True,"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning)})`;
+   reply(self,200,{"ok":True,"run_id":rid,"ai_used":True,"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning)})
   except Exception as e:reply(self,200,{"ok":False,"error":str(e)})
  def log_message(self,*a):pass
 ThreadingHTTPServer(("0.0.0.0",PORT),Handler).serve_forever()
