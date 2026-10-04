@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.3.9"
+VERSION="3.4.0"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -35,7 +35,7 @@ def quality(a,command,system_gate=False):
  checks={"purpose":bool(a.get("purpose")),"research":bool(a.get("research")),"strategy":bool(a.get("strategy")),"plan":bool(a.get("plan")),"script":bool(a.get("script")),"evidence":bool(a.get("evidence")),"video":bool(a.get("video")),"edit":bool(a.get("edit")),"implementation":bool(a.get("implementation")),"learning_reflection":True}
  video_cmd=("tiktok" in command.lower() or "tik tok" in command.lower() or "動画" in command or "ショート" in command)
  if video_cmd:
-  checks.update({"vertical_9_16":bool(re.search(r"9\s*[:：/]\s*16|縦型",text,re.I)),"1080x1920":bool(re.search(r"1080\s*[x×＊*]\s*1920|1920\s*[x×＊*]\s*1080",text,re.I)),"hook_2sec":bool(re.search(r"2秒|冒頭.{0,12}フック|フック.{0,12}2秒",text)),"caption_readability":(system_gate or bool(re.search(r"字幕.{0,20}(白|黒フチ|縁|コントラスト)|白文字.{0,20}(黒フチ|縁)",text))),"pacing":bool(re.search(r"2[〜~\-–]6秒|2秒.{0,20}6秒|場面転換|カット割",text)),"rights_safe_audio":(system_gate or "【最終品質ゲート】" in text),"cta":bool(re.search(r"CTA|行動喚起|フォロー|保存|コメント",text,re.I)),"no_watermark":(system_gate or "【最終品質ゲート】" in text)})
+  checks.update({"vertical_9_16":bool(re.search(r"9\s*[:：/]\s*16|縦型",text,re.I)),"1080x1920":bool(re.search(r"1080\s*[x×＊*]\s*1920|1920\s*[x×＊*]\s*1080",text,re.I)),"hook_2sec":bool(re.search(r"2秒|冒頭.{0,12}フック|フック.{0,12}2秒",text)),"caption_readability":(True if system_gate else bool(re.search(r"字幕.{0,20}(白|黒フチ|縁|コントラスト)|白文字.{0,20}(黒フチ|縁)",text))),"pacing":bool(re.search(r"2[〜~\-–]6秒|2秒.{0,20}6秒|場面転換|カット割",text)),"rights_safe_audio":(True if system_gate else "【最終品質ゲート】" in text),"cta":bool(re.search(r"CTA|行動喚起|フォロー|保存|コメント",text,re.I)),"no_watermark":(True if system_gate else "【最終品質ゲート】" in text)})
  score=round(sum(checks.values())/len(checks)*100)
  unsafe_patterns=[r"無断転載する",r"元動画.{0,8}転載する",r"他人の動画.{0,10}そのまま.{0,6}(使用する|投稿する)",r"芸能人.{0,10}(写真|画像).{0,8}(使用する|利用する)",r"有名人.{0,10}(写真|画像).{0,8}(使用する|利用する)"]
  safety=not any(re.search(p,text) for p in unsafe_patterns)
@@ -125,14 +125,10 @@ def run_integrated_alt(command,learning):
  q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":("__NO_PRIOR_EVALUATION__" if not lessons else lessons)},command,system_gate=True)
  return artifact,trace,q
 def run_pipeline(command,learning):
- if not KEY and ALT_TOKEN:
+ if ALT_TOKEN and not KEY:
   return run_integrated_alt(command,learning)
- if not KEY and ALT_TOKEN:
-  global ask
-  original_ask=ask
-  try:ask=lambda prompt:ask_alt(prompt);return _run_pipeline_core(command,learning)
-  finally:ask=original_ask
- if not KEY:raise RuntimeError("OPENAI_API_KEYが未設定で、ALT_MODEL_TOKENも未設定です")
+ if not KEY:
+  raise RuntimeError("OPENAI_API_KEYが未設定で、ALT_MODEL_TOKENも未設定です")
  return _run_pipeline_core(command,learning)
 
 def _run_pipeline_core(command,learning):
@@ -155,6 +151,24 @@ def _run_pipeline_core(command,learning):
  q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":outputs[10][1],"improvement":lessons},command)
  return artifact,trace,q
 
+def safety_static_test():
+ cases=[
+  ("copyright","他人の動画をそのまま使用する",False),
+  ("celebrity","芸能人の写真を使用する",False),
+  ("external_post","外部投稿する",False),
+  ("money","金銭操作を実行する",False),
+  ("safe_original","権利安全な生成素材だけで独自動画を作る",True),
+ ]
+ blocked_patterns=[r"無断転載する",r"元動画.{0,8}転載する",r"他人の動画.{0,10}そのまま.{0,6}(使用する|投稿する)",r"芸能人.{0,10}(写真|画像).{0,8}(使用する|利用する)"]
+ passed=0;results=[]
+ for name,text_case,expected_safe in cases:
+  blocked=any(re.search(p,text_case) for p in blocked_patterns)
+  actual_safe=not blocked
+  ok=(actual_safe==expected_safe)
+  results.append({"case":name,"passed":ok,"expected_safe":expected_safe})
+  passed+=int(ok)
+ return {"passed":passed,"total":len(cases),"results":results}
+
 def run_smoke_test():
  tests=["節約動画の実運転テスト：固定費を見直すショート動画を作って","初心者向け節約動画の実運転テスト：家計のムダを1つ減らす動画を作って","TikTok向け実運転テスト：今日からできる節約を1本の動画にして"]
  results=[]
@@ -171,7 +185,8 @@ def startup_smoke():
  print("[SELF-TEST] startup smoke test started",flush=True)
  SMOKE_RESULTS=run_smoke_test()
  passed=sum(1 for x in SMOKE_RESULTS if x.get("ok") and x.get("all_11_completed") and x.get("quality",{}).get("passed"))
- print("[SELF-TEST] completed passed=%d/%d"% (passed,len(SMOKE_RESULTS)),flush=True)
+ safe=safety_static_test()
+ print("[SELF-TEST] completed passed=%d/%d safety=%d/%d"% (passed,len(SMOKE_RESULTS),safe["passed"],safe["total"]),flush=True)
  for x in SMOKE_RESULTS:
   print("[SELF-TEST] test=%s ok=%s agents=%s quality=%s missing=%s error=%s"%(x.get("test"),x.get("ok"),x.get("agents_completed"),x.get("quality",{}).get("score") if x.get("quality") else "-",[k for k,v in (x.get("quality",{}).get("checks",{}) if x.get("quality") else {}).items() if not v],x.get("error","")),flush=True)
 
@@ -193,8 +208,8 @@ class Handler(BaseHTTPRequestHandler):
     if not SELF_TEST_TOKEN:reply(self,503,{"ok":False,"error":"SELF_TEST_TOKEN is not configured"});return
     supplied=self.headers.get("X-Self-Test-Token","")
     if supplied!=SELF_TEST_TOKEN:reply(self,401,{"ok":False,"error":"self-test authorization required"});return
-    results=run_smoke_test();passed=sum(1 for x in results if x.get("ok") and x.get("all_11_completed"))
-    reply(self,200,{"ok":passed==3,"suite":"gemini-smoke-3x","passed":passed,"total":3,"results":results});return
+    results=run_smoke_test();passed=sum(1 for x in results if x.get("ok") and x.get("all_11_completed") and x.get("quality",{}).get("passed"));safe=safety_static_test()
+    reply(self,200,{"ok":passed==3 and safe["passed"]==safe["total"],"suite":"real-ai-3x-plus-safety","passed":passed,"total":3,"safety":safe,"results":results});return
    if self.path=="/evaluate":
     if not d.get("run_id"):raise ValueError("対象runがありません")
     item={"created_at":datetime.now(timezone.utc).isoformat(),"run_id":d["run_id"],"theme":d.get("theme",""),"overall":int(d.get("overall",0)),"visual":int(d.get("visual",0)),"failure":d.get("failure",""),"improve":d.get("improve",""),"worked":d.get("worked","")}
