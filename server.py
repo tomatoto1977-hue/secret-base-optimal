@@ -8,7 +8,9 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.2.3"
+VERSION="3.2.4"
+RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
+SMOKE_RESULTS=[]
 
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
 LEARNING=[]
@@ -136,6 +138,15 @@ def run_smoke_test():
   except Exception as e:results.append({"test":i,"ok":False,"command":cmd,"elapsed_seconds":round(time.time()-started,1),"error":str(e)})
  return results
 
+def startup_smoke():
+ global SMOKE_RESULTS
+ print("[SELF-TEST] startup smoke test started",flush=True)
+ SMOKE_RESULTS=run_smoke_test()
+ passed=sum(1 for x in SMOKE_RESULTS if x.get("ok") and x.get("all_11_completed") and x.get("quality",{}).get("passed"))
+ print("[SELF-TEST] completed passed=%d/%d"% (passed,len(SMOKE_RESULTS)),flush=True)
+ for x in SMOKE_RESULTS:
+  print("[SELF-TEST] test=%s ok=%s agents=%s quality=%s error=%s"%(x.get("test"),x.get("ok"),x.get("agents_completed"),x.get("quality",{}).get("score") if x.get("quality") else "-",x.get("error","")),flush=True)
+
 class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
  def do_GET(self):
@@ -143,6 +154,9 @@ class Handler(BaseHTTPRequestHandler):
    reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
   elif self.path.startswith("/benchmark"):reply(self,200,{"ok":True,"benchmark":REFERENCE_BENCHMARK})
+  elif self.path.startswith("/smoke-status"):
+   passed=sum(1 for x in SMOKE_RESULTS if x.get("ok") and x.get("all_11_completed") and x.get("quality",{}).get("passed"))
+   reply(self,200,{"ok":bool(SMOKE_RESULTS) and passed==len(SMOKE_RESULTS),"ran":bool(SMOKE_RESULTS),"passed":passed,"total":len(SMOKE_RESULTS),"results":SMOKE_RESULTS})
   else:reply(self,404,{"ok":False})
  def do_POST(self):
   try:
@@ -167,4 +181,7 @@ class Handler(BaseHTTPRequestHandler):
   except Exception as e:reply(self,200,{"ok":False,"error":str(e)})
  def log_message(self,*a):pass
 
+if RUN_SMOKE_ON_START and ALT_TOKEN:
+ import threading
+ threading.Thread(target=startup_smoke,daemon=True).start()
 ThreadingHTTPServer(("0.0.0.0",PORT),Handler).serve_forever()
