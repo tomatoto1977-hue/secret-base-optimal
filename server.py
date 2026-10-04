@@ -142,34 +142,48 @@ JSONのみで返してください。キーは purpose,research,strategy,plan,in
 
 
 def run_pipeline(command,learning):
- if not KEY: raise RuntimeError("OPENAI_API_KEYが未設定のため実AIを実行できません")
  previous="なし";trace=[];outputs=[]
- lessons="\n".join(
-  "テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 映像="+str(x.get("visual",""))+"/5 失敗="+str(x.get("failure",""))+" 改善="+str(x.get("improve",""))+" 継続="+str(x.get("worked",""))
-  for x in learning[-12:]
- )
+ lessons="\n".join("テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 映像="+str(x.get("visual",""))+"/5 改善="+str(x.get("improve","")) for x in learning[-12:])
  benchmark=json.dumps(REFERENCE_BENCHMARK,ensure_ascii=False)
- for role,task in ROLE_TASKS:
-  prompt=f"""あなたは秘密基地3.1の{role}担当です。雰囲気だけの報告は禁止。あなた自身の担当工程で、次担当がそのまま使える具体的な成果物を作ってください。
+ provider=AI_PROVIDER if AI_PROVIDER in ("openai","gemini") else ("openai" if KEY else "gemini" if GEMINI_KEY else "none")
+ if provider=="gemini":
+  data=run_gemini_integrated(command,learning)
+  keys=["purpose","research","strategy","plan","information","budget","script","evidence","video","edit","implementation"]
+  for (role,_),key in zip(ROLE_TASKS,keys):
+   out=str(data.get(key,"")).strip()
+   if not out: raise RuntimeError("Gemini output missing: "+role)
+   outputs.append((role,out));trace.append({"agent":role,"status":"completed","provider":"gemini","output_summary":out[:220]})
+ elif provider=="openai":
+  try:
+   for role,task in ROLE_TASKS:
+    prompt=f"""あなたは秘密基地3.2の{role}担当です。具体的な成果物を作ってください。
 ユーザー依頼：{command}
-前回の人間評価（今回必ず反映。特に『改善』は優先度最高）：{lessons or "なし"}
-前担当の実成果：{previous[-7000:]}
-あなたの担当：{task}
-参考動画の最低品質基準：{benchmark}
-共通安全ルール：特定人物、とくに芸能人の無断利用禁止。権利不明素材禁止。トレンドは構造だけ学習。外部投稿・ログイン・金銭操作禁止。未確認情報は断定しない。
-重要：参考動画そのものを転載・模倣・再利用せず、品質特性だけを抽出する。最終成果物は独自内容にする。"""
-  out=ask(prompt)
-  time.sleep(1.0)
-  if not out: raise RuntimeError(role+"の出力が空です")
-  outputs.append((role,out));trace.append({"agent":role,"status":"completed","output_summary":out[:220]});previous=out
+前回評価：{lessons or "なし"}
+前担当：{previous[-7000:]}
+担当：{task}
+品質基準：{benchmark}
+安全：特定人物、とくに芸能人の無断利用禁止。権利不明素材禁止。外部投稿・ログイン・金銭操作禁止。未確認情報を断定しない。
+参考動画は品質特性だけを学び、転載・模倣しない。"""
+    out=ask_openai(prompt);time.sleep(1.0)
+    if not out: raise RuntimeError(role+" output empty")
+    outputs.append((role,out));trace.append({"agent":role,"status":"completed","provider":"openai","output_summary":out[:220]});previous=out
+  except RuntimeError as e:
+   if str(e)=="OPENAI_"+"QUOTA_"+"EXHAUSTED" and GEMINI_KEY:
+    data=run_gemini_integrated(command,learning)
+    keys=["purpose","research","strategy","plan","information","budget","script","evidence","video","edit","implementation"]
+    outputs=[];trace=[]
+    for (role,_),key in zip(ROLE_TASKS,keys):
+     out=str(data.get(key,"")).strip()
+     if not out: raise RuntimeError("Gemini output missing: "+role)
+     outputs.append((role,out));trace.append({"agent":role,"status":"completed","provider":"gemini-auto","output_summary":out[:220]})
+   else: raise
+ else:
+  raise RuntimeError("No AI provider configured")
  artifact=outputs[-1][1]
- q=quality({
-  "purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],
-  "plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],
-  "video":outputs[8][1],"edit":outputs[9][1],"implementation":outputs[10][1],
-  "improvement":lessons
- },command)
- return artifact,trace,q
+ q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":outputs[10][1],"improvement":lessons},command)
+ used_provider="gemini" if trace and trace[0].get("provider","").startswith("gemini") else "openai"
+ return artifact,trace,q,used_provider
+
 
 class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
