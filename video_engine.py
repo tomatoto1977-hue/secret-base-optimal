@@ -76,7 +76,8 @@ def render(package, output_path=None):
         title_file = work / "title.txt"
         _write_text(title_file, title[:70])
 
-        # Render the whole video in a single low-memory FFmpeg process.\n        # This avoids holding multiple 1080x1920 encodes in memory on Render Free.\n        segment_files=[]
+        # Render the whole video in a single low-memory FFmpeg process.\n        # This avoids holding multiple 1080x1920 encodes in memory on Render Free.\n        segment_files = []
+        # Explicit initialization keeps the startup self-test safe across reloads.
         for i in range(scene_count):
             body = chunks[i % len(chunks)]
             body_file = work / f"body_{i}.txt"
