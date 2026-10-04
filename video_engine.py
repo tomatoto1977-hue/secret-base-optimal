@@ -7,7 +7,8 @@ VIDEO_ROOT.mkdir(parents=True, exist_ok=True)
 def engine_status():
     ffmpeg = bool(shutil.which("ffmpeg"))
     ffprobe = bool(shutil.which("ffprobe"))
-    return {"provider":"ffmpeg","available":ffmpeg and ffprobe,"paid":False,"external_saas":False,"ffmpeg":ffmpeg,"ffprobe":ffprobe}
+    font = _font_file() if ffmpeg else ""
+    return {"provider":"ffmpeg","available":ffmpeg and ffprobe,"paid":False,"external_saas":False,"ffmpeg":ffmpeg,"ffprobe":ffprobe,"japanese_font":font,"japanese_font_ok":bool(font)}
 
 def _font_file():
     # Resolve an actual font file through fontconfig first; this is more reliable
