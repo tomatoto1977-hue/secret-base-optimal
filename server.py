@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.4.1"
+VERSION="3.5.0"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -151,6 +151,33 @@ def _run_pipeline_core(command,learning):
  q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":outputs[10][1],"improvement":lessons},command)
  return artifact,trace,q
 
+
+VIDEO_ENGINE_PROVIDER="ffmpeg"
+VIDEO_ENGINE_PAID_ALLOWED=False
+VIDEO_ENGINE_HUMAN_APPROVAL_REQUIRED=True
+
+def video_engine_health():
+    try:
+        from video_engine import engine_status
+        return engine_status()
+    except Exception as e:
+        return {"provider":"ffmpeg","available":False,"paid":False,"external_saas":False,"error":str(e)}
+
+def build_video_package(command,artifact):
+    return {"engine_contract":"secret-base-video-engine-v1","provider":"ffmpeg","status":"ready_for_render",
+            "format":{"container":"mp4","video_codec":"h264","audio_codec":"aac","width":1080,"height":1920,"fps":30,"aspect_ratio":"9:16"},
+            "requirements":{"hook_seconds_max":2,"scene_change_seconds":"2-6","captions":"white_text_black_outline","audio":"rights-safe","cta":True,"watermark":False},
+            "safety":{"external_posting":False,"login_automation":False,"money_operations":False,"named_people":False,"celebrity_assets":False,"rights_unknown_assets":False},
+            "command":command,"production_spec":artifact}
+
+def render_video_package(package,approved=False):
+    if VIDEO_ENGINE_HUMAN_APPROVAL_REQUIRED and not approved:
+        return {"ok":False,"status":"approval_required","engine":"ffmpeg"}
+    try:
+        from video_engine import render
+        return render(package)
+    except Exception as e:
+        return {"ok":False,"status":"engine_error","engine":"ffmpeg","error":str(e)}
 def safety_static_test():
  cases=[
   ("copyright","他人の動画をそのまま使用する",False),
@@ -196,7 +223,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
  def do_GET(self):
   if self.path.startswith("/health"):
-   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","benchmark":REFERENCE_BENCHMARK})
+   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
   elif self.path.startswith("/benchmark"):reply(self,200,{"ok":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/smoke-status"):
@@ -206,6 +233,16 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   try:
    n=int(self.headers.get("Content-Length","0"));d=json.loads(self.rfile.read(n) or b"{}")
+   if self.path=="/video-engine":
+    reply(self,200,{"ok":True,"engine":video_engine_health(),"cost_policy":{"external_saas":False,"paid_execution":False,"human_approval_required":True}});return
+   if self.path=="/video-package":
+    command=str(d.get("command","")).strip();artifact=str(d.get("artifact","")).strip()
+    if not command or not artifact:raise ValueError("command and artifact are required")
+    reply(self,200,{"ok":True,"package":build_video_package(command,artifact)});return
+   if self.path=="/render-video":
+    package=d.get("package") if isinstance(d.get("package"),dict) else None
+    if not package:raise ValueError("package required")
+    reply(self,200,render_video_package(package,approved=bool(d.get("approved",False))));return
    if self.path=="/self-test":
     if not SELF_TEST_TOKEN:reply(self,503,{"ok":False,"error":"SELF_TEST_TOKEN is not configured"});return
     supplied=self.headers.get("X-Self-Test-Token","")
