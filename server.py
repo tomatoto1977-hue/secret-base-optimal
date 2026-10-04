@@ -160,7 +160,7 @@ def run_integrated_alt(command,learning):
  raw=msg.get("content","") if isinstance(msg,dict) else ""
  if isinstance(raw,list): raw="\n".join(str(x.get("text","")) if isinstance(x,dict) else str(x) for x in raw)
  raw=str(raw).strip()
- if raw.startswith("```"): raw=re.sub(r"^```(?:json)?\\s*|\\s*```$","",raw,flags=re.I|re.S).strip()
+ if raw.startswith("```"): raw=re.sub(r"^\\s*```(?:json)?\\s*|\\s*```\\s*$","",raw,flags=re.I|re.S).strip()
  try: obj=json.loads(raw)
  except Exception as e: raise RuntimeError("統合AIのJSON解析に失敗しました: "+str(e))
  roles=obj.get("roles",[])
