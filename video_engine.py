@@ -1,4 +1,4 @@
-import json, os, re, shutil, subprocess, tempfile, textwrap, uuid
+import json, os, re, shutil, subprocess, tempfile, textwrap, uuid, sys
 from pathlib import Path
 
 VIDEO_ROOT = Path(os.environ.get("VIDEO_OUTPUT_DIR", "/tmp/secret-base-videos"))
@@ -27,6 +27,16 @@ def _font_file():
     for p in candidates:
         if Path(p).exists():
             return p
+    # Render Free currently exposes DejaVu but not a Japanese-capable font.
+    # Install a small free font package only when needed, then use its bundled IPAex font.
+    try:
+        subprocess.run(["python","-m","pip","install","--quiet","--disable-pip-version-check","japanize-matplotlib-modern==0.1.4"],capture_output=True,text=True,timeout=120)
+        roots=[Path(sys.prefix)/"lib"] if "sys" in globals() else []
+        for root in roots:
+            for p in root.glob("python*/site-packages/**/ipaexg.ttf"):
+                if p.exists(): return str(p)
+    except Exception:
+        pass
     return ""
 
 def _clean(text):
