@@ -69,6 +69,7 @@ def render(package, output_path=None):
     out.parent.mkdir(parents=True, exist_ok=True)
 
     work = Path(tempfile.mkdtemp(prefix="sbvideo_"))
+    segment_files = []
     try:
         font = _font_file()
         if not font:
@@ -76,8 +77,7 @@ def render(package, output_path=None):
         title_file = work / "title.txt"
         _write_text(title_file, title[:70])
 
-        # Render the whole video in a single low-memory FFmpeg process.\n        # This avoids holding multiple 1080x1920 encodes in memory on Render Free.\n        segment_files = []
-        # Explicit initialization keeps the startup self-test safe across reloads.
+        # Render scenes with a low-memory FFmpeg configuration.\n        # Explicit initialization keeps the startup self-test safe across reloads.
         for i in range(scene_count):
             body = chunks[i % len(chunks)]
             body_file = work / f"body_{i}.txt"
