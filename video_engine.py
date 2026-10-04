@@ -30,11 +30,20 @@ def _font_file():
     # Render Free currently exposes DejaVu but not a Japanese-capable font.
     # Install a small free font package only when needed, then use its bundled IPAex font.
     try:
-        subprocess.run(["python","-m","pip","install","--quiet","--disable-pip-version-check","pyxel-universal-font==1.1.1"],capture_output=True,text=True,timeout=120)
-        roots=[Path(sys.prefix)/"lib"] if "sys" in globals() else []
+        pip = subprocess.run(["python","-m","pip","install","--quiet","--disable-pip-version-check","pyxel-universal-font==1.1.1"],capture_output=True,text=True,timeout=120)
+        roots=[Path(sys.prefix)/"lib"]
         for root in roots:
-            for p in root.glob("python*/site-packages/**/ipaexg.ttf"):
-                if p.exists(): return str(p)
+            for pattern in ("**/ipaexg.ttf","**/IPAexGothic.ttf","**/ipa*.ttf","**/*.otf"):
+                for p in root.glob("python*/site-packages/"+pattern):
+                    if p.exists() and ("ipa" in p.name.lower() or "gothic" in p.name.lower()):
+                        return str(p)
+        # Last resort: install the Debian IPAex Gothic font if the runtime allows apt.
+        apt = subprocess.run(["apt-get","update","-qq"],capture_output=True,text=True,timeout=60)
+        if apt.returncode == 0:
+            apt2 = subprocess.run(["apt-get","install","-y","-qq","fonts-ipaexfont-gothic"],capture_output=True,text=True,timeout=120)
+            if apt2.returncode == 0:
+                for p in Path("/usr/share/fonts").glob("**/*ipa*.[to]tf"):
+                    if p.exists(): return str(p)
     except Exception:
         pass
     return ""
