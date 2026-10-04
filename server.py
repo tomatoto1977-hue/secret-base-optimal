@@ -5,7 +5,9 @@ from datetime import datetime,timezone
 PORT=int(os.environ.get("PORT","10000"))
 MODEL=os.environ.get("OPENAI_MODEL","gpt-5.6-luna")
 KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
-VERSION="3.1.2"
+ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
+ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
+VERSION="3.2.0"
 
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
 LEARNING=[]
