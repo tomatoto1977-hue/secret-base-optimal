@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.6.5"
+VERSION="3.6.6"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -143,9 +143,9 @@ def ask(prompt):
 def run_integrated_alt(command,learning):
  if not ALT_TOKEN: raise RuntimeError("ALT_MODEL_TOKENが未設定です")
  lessons=";".join("テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 改善="+str(x.get("improve","")) for x in learning[-12:])
- prompt=("あなたは秘密基地最適版の統括AIです。1回の応答で11工程を内部実行し、完成仕様を作る。依頼："+command+"。前回評価："+(lessons or "なし")+"。安全：特定人物・芸能人禁止、権利不明素材禁止、外部投稿・ログイン・金銭操作禁止、未確認情報を断定しない。動画最低基準：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化、白文字＋黒フチ、権利安全音声、CTA、ウォーターマークなし。最終成果物には必ず文字列として「9:16」「1080x1920」「2秒」「2〜6秒」「白文字」「黒フチ」「権利」「CTA」「ウォーターマークなし」「完成成果物」「前回評価の反映」「自己検査」を含める。参考動画は品質特性だけ利用し転載・模倣禁止。JSONだけを返し、rolesを11件、final_artifact、self_checkを含める。")
+ prompt=("あなたは秘密基地最適版の統括AIです。1回の応答で11工程を内部実行し、完成仕様を作る。依頼："+command+"。前回評価："+(lessons or "なし")+"。安全：特定人物・芸能人禁止、権利不明素材禁止、外部投稿・ログイン・金銭操作禁止、未確認情報を断定しない。動画最低基準：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化、白文字＋黒フチ、権利安全音声、CTA、ウォーターマークなし。最終成果物には必ず文字列として「9:16」「1080x1920」「2秒」「2〜6秒」「白文字」「黒フチ」「権利」「CTA」「ウォーターマークなし」「完成成果物」「前回評価の反映」「自己検査」を含める。参考動画は品質特性だけ利用し転載・模倣禁止。JSONは短く返す。roles各項目は50文字以内、final_artifactは700文字以内、self_checkは省略可能。rolesを11件、final_artifactを含める。")
  url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
- body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"max_tokens":2200,"response_format":{"type":"json_object"}}).encode()
+ body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"max_tokens":3200,"response_format":{"type":"json_object"}}).encode()
  req=urllib.request.Request(url,data=body,headers={"Authorization":"Bearer "+ALT_TOKEN,"Content-Type":"application/json"})
  for attempt in range(2):
   try:
