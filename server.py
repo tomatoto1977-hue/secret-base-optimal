@@ -7,7 +7,7 @@ MODEL=os.environ.get("OPENAI_MODEL","gpt-5.6-luna")
 KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
-VERSION="3.2.1"
+VERSION="3.2.2"
 
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
 LEARNING=[]
@@ -166,6 +166,26 @@ def _run_pipeline_core(command,learning):
  },command)
  return artifact,trace,q
 
+def run_smoke_test():
+ tests=[
+  "節約動画の実運転テスト：固定費を見直すショート動画を作って",
+  "初心者向け節約動画の実運転テスト：家計のムダを1つ減らす動画を作って",
+  "TikTok向け実運転テスト：今日からできる節約を1本の動画にして"
+ ]
+ results=[]
+ for i,cmd in enumerate(tests,1):
+  started=time.time()
+  try:
+   artifact,trace,q=run_pipeline(cmd,[])
+   results.append({
+    "test":i,"ok":True,"command":cmd,"elapsed_seconds":round(time.time()-started,1),
+    "agents_completed":len(trace),"all_11_completed":len(trace)==11 and all(x.get("status")=="completed" for x in trace),
+    "quality":q,"artifact_preview":artifact[:300]
+   })
+  except Exception as e:
+   results.append({"test":i,"ok":False,"command":cmd,"elapsed_seconds":round(time.time()-started,1),"error":str(e)})
+ return results
+
 class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
  def do_GET(self):
@@ -179,6 +199,11 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   try:
    n=int(self.headers.get("Content-Length","0"));d=json.loads(self.rfile.read(n) or b"{}")
+   if self.path=="/self-test":
+    results=run_smoke_test()
+    passed=sum(1 for x in results if x.get("ok") and x.get("all_11_completed"))
+    reply(self,200,{"ok":passed==3,"suite":"gemini-smoke-3x","passed":passed,"total":3,"results":results})
+    return
    if self.path=="/evaluate":
     if not d.get("run_id"): raise ValueError("対象runがありません")
     item={"created_at":datetime.now(timezone.utc).isoformat(),"run_id":d["run_id"],"theme":d.get("theme",""),"overall":int(d.get("overall",0)),"visual":int(d.get("visual",0)),"failure":d.get("failure",""),"improve":d.get("improve",""),"worked":d.get("worked","")}
