@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.6.4"
+VERSION="3.6.5"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -161,10 +161,13 @@ def run_integrated_alt(command,learning):
  if isinstance(msg,dict) and not raw and msg.get("parsed") is not None: raw=json.dumps(msg.get("parsed"),ensure_ascii=False)
  if isinstance(raw,list): raw="\n".join(str(x.get("text","")) if isinstance(x,dict) else str(x) for x in raw)
  raw=str(raw).strip()
- if raw.startswith("```"): raw=re.sub(r"^\\s*```(?:json)?\\s*|\\s*```\\s*$","",raw,flags=re.I|re.S).strip()
- m=re.search(r"\\{.*\\}\\s*$",raw,re.S)
- if m: raw=m.group(0)
+ if raw.startswith("```"): raw=re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$","",raw,flags=re.I|re.S).strip()
+ if not raw: raise RuntimeError("統合AIの応答が空です")
  try: obj=json.loads(raw)
+ except Exception:
+  start=raw.find("{"); end=raw.rfind("}")
+  if start<0 or end<=start: raise RuntimeError("統合AIのJSON解析に失敗しました: JSON本体が見つかりません")
+  obj=json.loads(raw[start:end+1])
  except Exception as e: raise RuntimeError("統合AIのJSON解析に失敗しました: "+str(e))
  roles=obj.get("roles",[])
  if not isinstance(roles,list) or len(roles)!=11: raise RuntimeError("統合AIの11工程データが不足しています")
