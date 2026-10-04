@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.3.2"
+VERSION="3.3.3"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -171,7 +171,7 @@ def startup_smoke():
  passed=sum(1 for x in SMOKE_RESULTS if x.get("ok") and x.get("all_11_completed") and x.get("quality",{}).get("passed"))
  print("[SELF-TEST] completed passed=%d/%d"% (passed,len(SMOKE_RESULTS)),flush=True)
  for x in SMOKE_RESULTS:
-  print("[SELF-TEST] test=%s ok=%s agents=%s quality=%s error=%s"%(x.get("test"),x.get("ok"),x.get("agents_completed"),x.get("quality",{}).get("score") if x.get("quality") else "-",x.get("error","")),flush=True)
+  print("[SELF-TEST] test=%s ok=%s agents=%s quality=%s missing=%s error=%s"%(x.get("test"),x.get("ok"),x.get("agents_completed"),x.get("quality",{}).get("score") if x.get("quality") else "-",[k for k,v in (x.get("quality",{}).get("checks",{}) if x.get("quality") else {}).items() if not v],x.get("error","")),flush=True)
 
 class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
