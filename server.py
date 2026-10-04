@@ -7,7 +7,7 @@ MODEL=os.environ.get("OPENAI_MODEL","gpt-5.6-luna")
 KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
-VERSION="3.2.0"
+VERSION="3.2.1"
 
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
 LEARNING=[]
@@ -82,7 +82,7 @@ ROLE_TASKS=[
 def ask_alt(prompt):
  if not ALT_TOKEN: raise RuntimeError("ALT_MODEL_TOKENが未設定です")
  url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
- body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"temperature":0.7,"max_tokens":450}).encode()
+ body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"max_tokens":450}).encode()
  req=urllib.request.Request(url,data=body,headers={"Authorization":"Bearer "+ALT_TOKEN,"Content-Type":"application/json"})
  for attempt in range(3):
   try:
@@ -125,7 +125,19 @@ def ask(prompt):
 
 
 def run_pipeline(command,learning):
- if not KEY: raise RuntimeError("OPENAI_API_KEYが未設定のため実AIを実行できません")
+ if not KEY and ALT_TOKEN:
+  global ask
+  original_ask=ask
+  try:
+   ask=lambda prompt: ask_alt(prompt)
+   return _run_pipeline_core(command,learning)
+  finally:
+   ask=original_ask
+ if not KEY:
+  raise RuntimeError("OPENAI_API_KEYが未設定で、ALT_MODEL_TOKENも未設定です")
+ return _run_pipeline_core(command,learning)
+
+def _run_pipeline_core(command,learning):
  previous="なし";trace=[];outputs=[]
  lessons="\n".join(
   "テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 映像="+str(x.get("visual",""))+"/5 失敗="+str(x.get("failure",""))+" 改善="+str(x.get("improve",""))+" 継続="+str(x.get("worked",""))
@@ -158,7 +170,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
  def do_GET(self):
   if self.path.startswith("/health"):
-   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY),"model":MODEL,"agent_count":11,"mode":"real-agent-only","benchmark":REFERENCE_BENCHMARK})
+   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):
    reply(self,200,{"ok":True,"items":LEARNING[-50:]})
   elif self.path.startswith("/benchmark"):
@@ -178,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
    learning=d.get("learning",[]) if isinstance(d.get("learning",[]),list) else []
    artifact,trace,q=run_pipeline(command,learning);rid=str(uuid.uuid4())[:12]
    RUNS[rid]={"command":command,"artifact":artifact,"quality":q}
-   reply(self,200,{"ok":True,"run_id":rid,"ai_used":True,"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION})
+   reply(self,200,{"ok":True,"run_id":rid,"ai_used":True,"provider":"OpenAI/ALT fallback","learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION})
   except Exception as e:reply(self,200,{"ok":False,"error":str(e)})
  def log_message(self,*a):pass
 
