@@ -6,10 +6,10 @@ from pathlib import Path
 PORT=int(os.environ.get("PORT","10000"))
 MODEL=os.environ.get("OPENAI_MODEL","gpt-5.6-luna")
 KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
-ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
+ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.6.1"
+VERSION="3.6.2"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -167,7 +167,9 @@ def run_integrated_alt(command,learning):
  q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":("__NO_PRIOR_EVALUATION__" if not lessons else lessons)},command,system_gate=True)
  return artifact,trace,q
 def run_pipeline(command,learning):
- if ALT_TOKEN and not KEY:
+ # When the alternate provider is configured, use one integrated request.
+ # This avoids 11 sequential fallback calls and browser/Render timeouts.
+ if ALT_TOKEN:
   return run_integrated_alt(command,learning)
  if not KEY:
   raise RuntimeError("OPENAI_API_KEYが未設定で、ALT_MODEL_TOKENも未設定です")
