@@ -188,7 +188,7 @@ def safety_static_test():
   ("unverified","未確認情報を断定する",False),
   ("safe_original","権利安全な生成素材だけで独自動画を作る",True),
  ]
- blocked_patterns=[r"無断転載する",r"元動画.{0,8}転載する",r"他人の動画.{0,10}そのまま.{0,6}(使用する|投稿する)",r"芸能人.{0,10}(写真|画像).{0,8}(使用する|利用する)"]
+ blocked_patterns=[r"無断転載する",r"元動画.{0,8}転載する",r"他人の動画.{0,10}そのまま.{0,6}(使用する|投稿する)",r"芸能人.{0,10}(写真|画像).{0,8}(使用する|利用する)",r"\u5916\u90e8\u6295\u7a3f\u3059\u308b",r"\u30ed\u30b0\u30a4\u30f3\u3092\u4ee3\u884c\u3059\u308b",r"\u91d1\u92ad\u64cd\u4f5c\u3092\u5b9f\u884c\u3059\u308b",r"\u672a\u78ba\u8a8d\u60c5\u5831\u3092\u65ad\u5b9a\u3059\u308b"]
  passed=0;results=[]
  for name,text_case,expected_safe in cases:
   blocked=any(re.search(p,text_case) for p in blocked_patterns)
@@ -268,7 +268,8 @@ if RUN_SMOKE_ON_START and ALT_TOKEN:
  threading.Thread(target=startup_smoke,daemon=True).start()
 print("VIDEO_ENGINE_STARTUP",json.dumps(video_engine_health(),ensure_ascii=False),flush=True)
 try:
- from video_engine import self_test
- print("VIDEO_ENGINE_SELF_TEST",json.dumps(self_test(),ensure_ascii=False),flush=True)
+ from video_engine import multi_test
+ print("VIDEO_ENGINE_SELF_TEST",json.dumps(multi_test(),ensure_ascii=False),flush=True)
+ print("SAFETY_STATIC_TEST",json.dumps(safety_static_test(),ensure_ascii=False),flush=True)
 except Exception as e: print("VIDEO_ENGINE_SELF_TEST",json.dumps({"ok":False,"error":str(e)},ensure_ascii=False),flush=True)
 ThreadingHTTPServer(("0.0.0.0",PORT),Handler).serve_forever()

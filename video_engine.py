@@ -27,6 +27,12 @@ def render(package, output_path=None):
         return {"ok":False,"status":"render_exception","engine":status,"error":str(e)}
 
 
+def multi_test():
+    results=[]
+    for i in range(3):
+        r=self_test(); r["run"]=i+1; results.append(r)
+    return {"ok":len(results)==3 and all(r.get("ok") for r in results),"runs":results}
+
 def self_test():
     status=engine_status()
     if not status["available"]:
