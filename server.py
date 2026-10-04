@@ -79,10 +79,27 @@ ROLE_TASKS=[
  ("実装","全担当の成果を統合し、今回の完成成果物を作る。前回評価を明示的に反映する。動画依頼なら、下記の参考動画を最低品質基準として、1080x1920、9:16、冒頭2秒フック、2〜6秒程度の画面変化、読みやすい白字幕＋黒フチ、権利安全な音声、CTA、ウォーターマークなしを必ず具体化する。最後に『完成成果物』『前回評価の反映』『自己検査』の3見出しを付ける。")
 ]
 
+def ask_alt(prompt):
+ if not ALT_TOKEN: raise RuntimeError("ALT_MODEL_TOKENが未設定です")
+ url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+ body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"temperature":0.7,"max_tokens":450}).encode()
+ req=urllib.request.Request(url,data=body,headers={"Authorization":"Bearer "+ALT_TOKEN,"Content-Type":"application/json"})
+ for attempt in range(3):
+  try:
+   with urllib.request.urlopen(req,timeout=120) as r:data=json.load(r)
+   out=data.get("choices",[{}])[0].get("message",{}).get("content","")
+   if out:return str(out).strip()
+   raise RuntimeError("代替AI応答が空です")
+  except urllib.error.HTTPError as e:
+   raw=e.read().decode("utf-8","replace")
+   if e.code in (429,500,502,503,504) and attempt<2:
+    time.sleep(2**attempt);continue
+   raise RuntimeError("代替AI HTTP "+str(e.code)+": "+raw[:500])
+ raise RuntimeError("代替AI応答を取得できませんでした")
+
 def ask(prompt):
  body=json.dumps({"model":MODEL,"input":prompt,"max_output_tokens":450}).encode()
  req=urllib.request.Request("https://api.openai.com/v1/responses",data=body,headers={"Authorization":"Bearer "+KEY,"Content-Type":"application/json"})
- last_error=None
  for attempt in range(4):
   try:
    with urllib.request.urlopen(req,timeout=120) as r:data=json.load(r)
@@ -94,28 +111,18 @@ def ask(prompt):
    return out.strip()
   except urllib.error.HTTPError as e:
    raw=e.read().decode("utf-8","replace")
-   try:
-    detail=json.loads(raw).get("error",{})
-   except Exception:
-    detail={}
+   try: detail=json.loads(raw).get("error",{})
+   except Exception: detail={}
    code=str(detail.get("code") or "")
    message=str(detail.get("message") or raw[:500])
-   last_error=(e.code,code,message)
-   if e.code != 429:
-    raise RuntimeError(f"OpenAI HTTP {e.code}: {message}")
-   if code in ("insufficient_quota","billing_hard_limit_reached"):
-    raise RuntimeError("OpenAI APIの利用上限/残高により429が発生しています。RenderのAPIキー自体は認識されていますが、利用可能なAPIクレジットまたは上限設定を確認してください。")
-   wait=min(8,2**attempt)
-   retry_after=e.headers.get("Retry-After")
-   if retry_after:
-    try: wait=max(wait,min(30,int(float(retry_after))))
-    except Exception: pass
-   time.sleep(wait)
-  except Exception as e:
-   raise RuntimeError(f"OpenAI接続エラー: {e}")
- if last_error:
-  raise RuntimeError(f"OpenAI 429: {last_error[2]}")
+   if e.code==429 and code in ("insufficient_quota","billing_hard_limit_reached","credit_balance_exhausted","organization_spend_limit_exceeded","organization_usage_limit_exceeded"):
+    if ALT_TOKEN:return ask_alt(prompt)
+    raise RuntimeError("OpenAI利用上限に達しました。代替AIの設定がまだありません。")
+   if e.code!=429: raise RuntimeError("OpenAI HTTP "+str(e.code)+": "+message)
+   time.sleep(min(8,2**attempt))
+  except Exception as e: raise RuntimeError("OpenAI接続エラー: "+str(e))
  raise RuntimeError("OpenAI応答を取得できませんでした")
+
 
 def run_pipeline(command,learning):
  if not KEY: raise RuntimeError("OPENAI_API_KEYが未設定のため実AIを実行できません")
