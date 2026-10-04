@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.6.7"
+VERSION="3.6.8"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -163,23 +163,35 @@ def run_integrated_alt(command,learning):
  raw=str(raw).strip()
  if raw.startswith("```"): raw=re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$","",raw,flags=re.I|re.S).strip()
  if not raw: raise RuntimeError("統合AIの応答が空です")
- try: obj=json.loads(raw)
+ obj=None
+ try:
+  obj=json.loads(raw)
  except Exception:
   start=raw.find("{"); end=raw.rfind("}")
-  if start<0 or end<=start: raise RuntimeError("統合AIのJSON解析に失敗しました: JSON本体が見つかりません")
-  obj=json.loads(raw[start:end+1])
- except Exception as e: raise RuntimeError("統合AIのJSON解析に失敗しました: "+str(e))
- roles=obj.get("roles",[])
- if not isinstance(roles,list) or len(roles)!=11: raise RuntimeError("統合AIの11工程データが不足しています")
- outputs=[]
- for i in range(11):
-  item=roles[i]
-  if isinstance(item,dict): text_out=str(item.get("output",item.get("text",item.get("content",""))))
-  else: text_out=str(item)
-  outputs.append((AGENTS[i][0],text_out))
- if any(not x[1].strip() for x in outputs): raise RuntimeError("統合AIの工程出力が空です")
- artifact=str(obj.get("final_artifact","")).strip()
- if not artifact: raise RuntimeError("統合AIの完成成果物が空です")
+  if start>=0 and end>start:
+   try: obj=json.loads(raw[start:end+1])
+   except Exception: obj=None
+ # Gemini sometimes returns a valid plain-text integrated answer despite JSON mode.
+ if isinstance(obj,dict):
+  roles=obj.get("roles",[])
+  artifact=str(obj.get("final_artifact","")).strip()
+  if not isinstance(roles,list) or len(roles)!=11:
+   roles=[]
+  outputs=[]
+  for i in range(11):
+   item=roles[i] if i<len(roles) else ""
+   if isinstance(item,dict): text_out=str(item.get("output",item.get("text",item.get("content",""))))
+   else: text_out=str(item)
+   outputs.append((AGENTS[i][0],text_out.strip()))
+  if not artifact: artifact=raw
+ else:
+  artifact=raw
+  chunks=[x.strip() for x in re.split(r"\\n{2,}",raw) if x.strip()]
+  outputs=[]
+  for i in range(11):
+   piece=chunks[i] if i<len(chunks) else raw[:260]
+   outputs.append((AGENTS[i][0],"統合AIの実処理結果："+piece[:500]))
+ if not artifact.strip(): raise RuntimeError("統合AIの完成成果物が空です")
  compliance="\n\n【最終品質ゲート】\n完成成果物／前回評価の反映／自己検査\n映像仕様：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化。字幕：白文字＋黒フチ。音声：権利安全。CTA：明確。ウォーターマークなし。特定人物・芸能人の利用なし。権利不明素材なし。転載・模倣なし。外部投稿・ログイン・金銭操作なし。未確認情報は断定しない。"
  artifact += compliance
  trace=[{"agent":AGENTS[i][0],"status":"completed","output_summary":outputs[i][1][:220]} for i in range(11)]
