@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.2.4"
+VERSION="3.3.0"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -98,7 +98,30 @@ def ask(prompt):
   except Exception as e:raise RuntimeError("OpenAI接続エラー: "+str(e))
  raise RuntimeError("OpenAI応答を取得できませんでした")
 
+def run_integrated_alt(command,learning):
+ if not ALT_TOKEN: raise RuntimeError("ALT_MODEL_TOKENが未設定です")
+ lessons=";".join("テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 改善="+str(x.get("improve","")) for x in learning[-12:])
+ prompt=("あなたは秘密基地最適版の統括AIです。1回の応答で11工程を内部実行し、完成仕様を作る。依頼："+command+"。前回評価："+(lessons or "なし")+"。安全：特定人物・芸能人禁止、権利不明素材禁止、外部投稿・ログイン・金銭操作禁止、未確認情報を断定しない。動画最低基準：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化、白字幕＋黒フチ、権利安全音声、CTA、ウォーターマークなし。参考動画は品質特性だけ利用し転載・模倣禁止。JSONだけを返し、rolesを11件、final_artifact、self_checkを含める。")
+ url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+ body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"max_tokens":2200}).encode()
+ req=urllib.request.Request(url,data=body,headers={"Authorization":"Bearer "+ALT_TOKEN,"Content-Type":"application/json"})
+ with urllib.request.urlopen(req,timeout=180) as r:data=json.load(r)
+ raw=str(data.get("choices",[{}])[0].get("message",{}).get("content","")).strip()
+ if raw.startswith("```"): raw=re.sub(r"^```(?:json)?\\s*|\\s*```$","",raw,flags=re.I|re.S).strip()
+ try: obj=json.loads(raw)
+ except Exception as e: raise RuntimeError("統合AIのJSON解析に失敗しました: "+str(e))
+ roles=obj.get("roles",[])
+ if not isinstance(roles,list) or len(roles)!=11: raise RuntimeError("統合AIの11工程データが不足しています")
+ outputs=[(AGENTS[i][0],str(roles[i].get("output",""))) for i in range(11)]
+ if any(not x[1].strip() for x in outputs): raise RuntimeError("統合AIの工程出力が空です")
+ artifact=str(obj.get("final_artifact","")).strip()
+ if not artifact: raise RuntimeError("統合AIの完成成果物が空です")
+ trace=[{"agent":AGENTS[i][0],"status":"completed","output_summary":outputs[i][1][:220]} for i in range(11)]
+ q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":lessons},command)
+ return artifact,trace,q
 def run_pipeline(command,learning):
+ if not KEY and ALT_TOKEN:
+  return run_integrated_alt(command,learning)
  if not KEY and ALT_TOKEN:
   global ask
   original_ask=ask
