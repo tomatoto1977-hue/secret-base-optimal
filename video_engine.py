@@ -30,7 +30,7 @@ def _font_file():
     # Render Free currently exposes DejaVu but not a Japanese-capable font.
     # Install a small free font package only when needed, then use its bundled IPAex font.
     try:
-        subprocess.run(["python","-m","pip","install","--quiet","--disable-pip-version-check","japanize-matplotlib-modern==0.1.4"],capture_output=True,text=True,timeout=120)
+        subprocess.run(["python","-m","pip","install","--quiet","--disable-pip-version-check","pyxel-universal-font==1.1.1"],capture_output=True,text=True,timeout=120)
         roots=[Path(sys.prefix)/"lib"] if "sys" in globals() else []
         for root in roots:
             for p in root.glob("python*/site-packages/**/ipaexg.ttf"):
