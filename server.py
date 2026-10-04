@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.6.6"
+VERSION="3.6.7"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -171,7 +171,12 @@ def run_integrated_alt(command,learning):
  except Exception as e: raise RuntimeError("統合AIのJSON解析に失敗しました: "+str(e))
  roles=obj.get("roles",[])
  if not isinstance(roles,list) or len(roles)!=11: raise RuntimeError("統合AIの11工程データが不足しています")
- outputs=[(AGENTS[i][0],str(roles[i].get("output",""))) for i in range(11)]
+ outputs=[]
+ for i in range(11):
+  item=roles[i]
+  if isinstance(item,dict): text_out=str(item.get("output",item.get("text",item.get("content",""))))
+  else: text_out=str(item)
+  outputs.append((AGENTS[i][0],text_out))
  if any(not x[1].strip() for x in outputs): raise RuntimeError("統合AIの工程出力が空です")
  artifact=str(obj.get("final_artifact","")).strip()
  if not artifact: raise RuntimeError("統合AIの完成成果物が空です")
