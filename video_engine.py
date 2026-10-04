@@ -1,4 +1,4 @@
-import json, os, shutil, subprocess, tempfile, textwrap, uuid
+import json, os, re, shutil, subprocess, tempfile, textwrap, uuid
 from pathlib import Path
 
 VIDEO_ROOT = Path(os.environ.get("VIDEO_OUTPUT_DIR", "/tmp/secret-base-videos"))
@@ -35,6 +35,7 @@ def _clean(text):
 
 def _scene_text(artifact, command):
     raw = _clean(artifact)
+    raw = re.sub(r"https?://\\S+|\\b[\\w.-]+\\.onrender\\.com\\b", "", raw)
     if not raw:
         raw = _clean(command)
     # Keep the first few meaningful chunks. The renderer is deliberately deterministic.
@@ -48,6 +49,8 @@ def _write_text(path, text):
 
 def _esc_filter_path(path):
     return str(path).replace("\\","/").replace(":","\\:")
+def _font_expr():
+    return "Noto Sans CJK JP"
 
 def render(package, output_path=None):
     status = engine_status()
@@ -89,7 +92,7 @@ def render(package, output_path=None):
             hue = [0.08,0.16,0.28,0.42,0.58,0.72][i]
             color = ["#20192f","#182b35","#2b2234","#19312d","#30251c","#20233a"][i]
             vf = (
-                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(title_file)}':"
+                f"drawtext=font='{_font_expr()}':textfile='{_esc_filter_path(title_file)}':"
                 f"fontcolor=white:fontsize=62:borderw=5:bordercolor=black:x=(w-text_w)/2:y=150,"
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(body_file)}':"
                 f"fontcolor=white:fontsize=52:borderw=4:bordercolor=black:x=70:y=(h-text_h)/2-30:"
