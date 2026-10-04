@@ -1,6 +1,7 @@
 import os,json,urllib.request,urllib.error,urllib.parse,uuid,re,time,xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-from datetime import datetime,timezone\nfrom pathlib import Path
+from datetime import datetime,timezone
+from pathlib import Path
 
 PORT=int(os.environ.get("PORT","10000"))
 MODEL=os.environ.get("OPENAI_MODEL","gpt-5.6-luna")
@@ -9,7 +10,8 @@ ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
 VERSION="3.6.0"
-RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"\nVIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
+RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
+VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
 
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
