@@ -10,23 +10,22 @@ def engine_status():
     return {"provider":"ffmpeg","available":ffmpeg and ffprobe,"paid":False,"external_saas":False,"ffmpeg":ffmpeg,"ffprobe":ffprobe}
 
 def _font_file():
-    # Prefer a Japanese-capable font, then fall back to DejaVu.
-    candidates = [
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
-        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
-    for p in candidates:
-        if Path(p).exists():
-            return p
+    # Resolve an actual font file through fontconfig first; this is more reliable
+    # than passing a font family name to FFmpeg's drawtext on minimal Render images.
     try:
         p = subprocess.check_output(["fc-match","-f","%{file}","Noto Sans CJK JP"], text=True, timeout=5).strip()
         if p and Path(p).exists():
             return p
     except Exception:
         pass
+    candidates = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
+        "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for p in candidates:
+        if Path(p).exists():
+            return p
     return ""
 
 def _clean(text):
@@ -49,8 +48,6 @@ def _write_text(path, text):
 
 def _esc_filter_path(path):
     return str(path).replace("\\","/").replace(":","\\:")
-def _font_expr():
-    return "Noto Sans CJK JP"
 
 def render(package, output_path=None):
     status = engine_status()
@@ -92,7 +89,7 @@ def render(package, output_path=None):
             hue = [0.08,0.16,0.28,0.42,0.58,0.72][i]
             color = ["#20192f","#182b35","#2b2234","#19312d","#30251c","#20233a"][i]
             vf = (
-                f"drawtext=font='{_font_expr()}':textfile='{_esc_filter_path(title_file)}':"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(title_file)}':"
                 f"fontcolor=white:fontsize=62:borderw=5:bordercolor=black:x=(w-text_w)/2:y=150,"
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(body_file)}':"
                 f"fontcolor=white:fontsize=52:borderw=4:bordercolor=black:x=70:y=(h-text_h)/2-30:"
