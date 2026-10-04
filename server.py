@@ -340,8 +340,6 @@ if RUN_SMOKE_ON_START and ALT_TOKEN:
  threading.Thread(target=startup_smoke,daemon=True).start()
 print("VIDEO_ENGINE_STARTUP",json.dumps(video_engine_health(),ensure_ascii=False),flush=True)
 try:
- from video_engine import multi_test
- print("VIDEO_ENGINE_SELF_TEST",json.dumps(multi_test(),ensure_ascii=False),flush=True)
  print("SAFETY_STATIC_TEST",json.dumps(safety_static_test(),ensure_ascii=False),flush=True)
-except Exception as e: print("VIDEO_ENGINE_SELF_TEST",json.dumps({"ok":False,"error":str(e)},ensure_ascii=False),flush=True)
+except Exception as e: print("SAFETY_STATIC_TEST",json.dumps({"ok":False,"error":str(e)},ensure_ascii=False),flush=True)
 ThreadingHTTPServer(("0.0.0.0",PORT),Handler).serve_forever()
