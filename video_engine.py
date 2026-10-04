@@ -76,8 +76,7 @@ def render(package, output_path=None):
         title_file = work / "title.txt"
         _write_text(title_file, title[:70])
 
-        # Each scene is generated independently so a scene change is guaranteed every 5 seconds.
-        segment_files=[]
+        # Render the whole video in a single low-memory FFmpeg process.\n        # This avoids holding multiple 1080x1920 encodes in memory on Render Free.\n        segment_files=[]
         for i in range(scene_count):
             body = chunks[i % len(chunks)]
             body_file = work / f"body_{i}.txt"
@@ -100,7 +99,7 @@ def render(package, output_path=None):
             cmd=[
                 "ffmpeg","-y","-f","lavfi","-i",f"color=c={color}:s=1080x1920:r=30",
                 "-t",str(scene_duration),"-vf",vf,
-                "-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-an",str(seg)
+                "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p","-an",str(seg)
             ]
             p=subprocess.run(cmd,capture_output=True,text=True,timeout=120)
             if p.returncode!=0:
@@ -122,8 +121,8 @@ def render(package, output_path=None):
 
         p=subprocess.run([
             "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-i",str(audio),
-            "-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-r","30",
-            "-c:a","aac","-b:a","128k","-shortest","-movflags","+faststart",str(out)
+            "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p","-r","30",
+            "-c:a","aac","-b:a","96k","-threads","1","-shortest","-movflags","+faststart",str(out)
         ],capture_output=True,text=True,timeout=240)
         if p.returncode!=0:
             return {"ok":False,"status":"final_mux_error","engine":status,"error":p.stderr[-1500:]}
