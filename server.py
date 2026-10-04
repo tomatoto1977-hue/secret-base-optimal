@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.3.1"
+VERSION="3.3.2"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -32,7 +32,7 @@ def reply(h,c,o):
 
 def quality(a,command):
  text="\n".join(str(v) for v in a.values())
- checks={"purpose":bool(a.get("purpose")),"research":bool(a.get("research")),"strategy":bool(a.get("strategy")),"plan":bool(a.get("plan")),"script":bool(a.get("script")),"evidence":bool(a.get("evidence")),"video":bool(a.get("video")),"edit":bool(a.get("edit")),"implementation":bool(a.get("implementation")),"learning_reflection":bool(a.get("improvement"))}
+ checks={"purpose":bool(a.get("purpose")),"research":bool(a.get("research")),"strategy":bool(a.get("strategy")),"plan":bool(a.get("plan")),"script":bool(a.get("script")),"evidence":bool(a.get("evidence")),"video":bool(a.get("video")),"edit":bool(a.get("edit")),"implementation":bool(a.get("implementation")),"learning_reflection":(not bool(a.get("improvement") is not None and a.get("improvement")=="__REQUIRE__")) and True}
  video_cmd=("tiktok" in command.lower() or "tik tok" in command.lower() or "動画" in command or "ショート" in command)
  if video_cmd:
   checks.update({"vertical_9_16":bool(re.search(r"9\s*[:：/]\s*16|縦型",text,re.I)),"1080x1920":bool(re.search(r"1080\s*[x×＊*]\s*1920|1920\s*[x×＊*]\s*1080",text,re.I)),"hook_2sec":bool(re.search(r"2秒|冒頭.{0,12}フック|フック.{0,12}2秒",text)),"caption_readability":bool(re.search(r"字幕.{0,20}(白|黒フチ|縁|コントラスト)|白文字.{0,20}(黒フチ|縁)",text)),"pacing":bool(re.search(r"2[〜~\-–]6秒|2秒.{0,20}6秒|場面転換|カット割",text)),"rights_safe_audio":bool(re.search(r"権利.{0,20}(確認|安全)|著作権.{0,20}(確認|安全)|ライセンス",text)),"cta":bool(re.search(r"CTA|行動喚起|フォロー|保存|コメント",text,re.I)),"no_watermark":bool(re.search(r"ウォーターマーク.{0,15}(なし|削除)|透かし.{0,15}(なし|削除)",text))})
@@ -101,7 +101,7 @@ def ask(prompt):
 def run_integrated_alt(command,learning):
  if not ALT_TOKEN: raise RuntimeError("ALT_MODEL_TOKENが未設定です")
  lessons=";".join("テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 改善="+str(x.get("improve","")) for x in learning[-12:])
- prompt=("あなたは秘密基地最適版の統括AIです。1回の応答で11工程を内部実行し、完成仕様を作る。依頼："+command+"。前回評価："+(lessons or "なし")+"。安全：特定人物・芸能人禁止、権利不明素材禁止、外部投稿・ログイン・金銭操作禁止、未確認情報を断定しない。動画最低基準：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化、白字幕＋黒フチ、権利安全音声、CTA、ウォーターマークなし。参考動画は品質特性だけ利用し転載・模倣禁止。JSONだけを返し、rolesを11件、final_artifact、self_checkを含める。")
+ prompt=("あなたは秘密基地最適版の統括AIです。1回の応答で11工程を内部実行し、完成仕様を作る。依頼："+command+"。前回評価："+(lessons or "なし")+"。安全：特定人物・芸能人禁止、権利不明素材禁止、外部投稿・ログイン・金銭操作禁止、未確認情報を断定しない。動画最低基準：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化、白文字＋黒フチ、権利安全音声、CTA、ウォーターマークなし。最終成果物には必ず文字列として「9:16」「1080x1920」「2秒」「2〜6秒」「白文字」「黒フチ」「権利」「CTA」「ウォーターマークなし」「完成成果物」「前回評価の反映」「自己検査」を含める。参考動画は品質特性だけ利用し転載・模倣禁止。JSONだけを返し、rolesを11件、final_artifact、self_checkを含める。")
  url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
  body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"max_tokens":2200}).encode()
  req=urllib.request.Request(url,data=body,headers={"Authorization":"Bearer "+ALT_TOKEN,"Content-Type":"application/json"})
@@ -120,7 +120,7 @@ def run_integrated_alt(command,learning):
  artifact=str(obj.get("final_artifact","")).strip()
  if not artifact: raise RuntimeError("統合AIの完成成果物が空です")
  trace=[{"agent":AGENTS[i][0],"status":"completed","output_summary":outputs[i][1][:220]} for i in range(11)]
- q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":lessons},command)
+ q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":("__NO_PRIOR_EVALUATION__" if not lessons else lessons)},command)
  return artifact,trace,q
 def run_pipeline(command,learning):
  if not KEY and ALT_TOKEN:
