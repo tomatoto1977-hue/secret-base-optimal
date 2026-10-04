@@ -5,10 +5,7 @@ from datetime import datetime,timezone
 PORT=int(os.environ.get("PORT","10000"))
 MODEL=os.environ.get("OPENAI_MODEL","gpt-5.6-luna")
 KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
-GEMINI_MODEL=os.environ.get("GEMINI_MODEL","gemini-3.8-flash")
-GEMINI_KEY=os.environ.get("GOOGLE_"+"AI_"+"SECRET","").strip()
-AI_PROVIDER=os.environ.get("AI_PROVIDER","auto").strip().lower()
-VERSION="3.2.0"
+VERSION="3.1.2"
 
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
 LEARNING=[]
@@ -80,9 +77,10 @@ ROLE_TASKS=[
  ("実装","全担当の成果を統合し、今回の完成成果物を作る。前回評価を明示的に反映する。動画依頼なら、下記の参考動画を最低品質基準として、1080x1920、9:16、冒頭2秒フック、2〜6秒程度の画面変化、読みやすい白字幕＋黒フチ、権利安全な音声、CTA、ウォーターマークなしを必ず具体化する。最後に『完成成果物』『前回評価の反映』『自己検査』の3見出しを付ける。")
 ]
 
-def ask_openai(prompt):
+def ask(prompt):
  body=json.dumps({"model":MODEL,"input":prompt,"max_output_tokens":450}).encode()
  req=urllib.request.Request("https://api.openai.com/v1/responses",data=body,headers={"Authorization":"Bearer "+KEY,"Content-Type":"application/json"})
+ last_error=None
  for attempt in range(4):
   try:
    with urllib.request.urlopen(req,timeout=120) as r:data=json.load(r)
@@ -94,96 +92,58 @@ def ask_openai(prompt):
    return out.strip()
   except urllib.error.HTTPError as e:
    raw=e.read().decode("utf-8","replace")
-   try: detail=json.loads(raw).get("error",{})
-   except Exception: detail={}
+   try:
+    detail=json.loads(raw).get("error",{})
+   except Exception:
+    detail={}
    code=str(detail.get("code") or "")
    message=str(detail.get("message") or raw[:500])
-   if e.code==429 and code in ("insufficient_quota","billing_hard_limit_reached","credit_balance_exhausted","organization_spend_limit_exceeded","organization_usage_limit_exceeded"):
-    raise RuntimeError("OPENAI_QUOTA_EXHAUSTED")
-   if e.code!=429: raise RuntimeError(f"OpenAI HTTP {e.code}: {message}")
-   time.sleep(min(8,2**attempt))
-  except Exception as e: raise RuntimeError(f"OpenAI接続エラー: {e}")
+   last_error=(e.code,code,message)
+   if e.code != 429:
+    raise RuntimeError(f"OpenAI HTTP {e.code}: {message}")
+   if code in ("insufficient_quota","billing_hard_limit_reached"):
+    raise RuntimeError("OpenAI APIの利用上限/残高により429が発生しています。RenderのAPIキー自体は認識されていますが、利用可能なAPIクレジットまたは上限設定を確認してください。")
+   wait=min(8,2**attempt)
+   retry_after=e.headers.get("Retry-After")
+   if retry_after:
+    try: wait=max(wait,min(30,int(float(retry_after))))
+    except Exception: pass
+   time.sleep(wait)
+  except Exception as e:
+   raise RuntimeError(f"OpenAI接続エラー: {e}")
+ if last_error:
+  raise RuntimeError(f"OpenAI 429: {last_error[2]}")
  raise RuntimeError("OpenAI応答を取得できませんでした")
 
-def ask_gemini(prompt):
- if not GEMINI_KEY: raise RuntimeError("GOOGLE_AI_SECRETが未設定です")
- url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
- body=json.dumps({"model":GEMINI_MODEL,"messages":[{"role":"user","content":prompt}],"temperature":0.7,"max_tokens":900}).encode()
- req=urllib.request.Request(url,data=body,headers={"Authorization":"Bearer "+GEMINI_KEY,"Content-Type":"application/json"})
- for attempt in range(3):
-  try:
-   with urllib.request.urlopen(req,timeout=120) as r:data=json.load(r)
-   out=data.get("choices",[{}])[0].get("message",{}).get("content","")
-   if out:return str(out).strip()
-   raise RuntimeError("Gemini応答が空です")
-  except urllib.error.HTTPError as e:
-   raw=e.read().decode("utf-8","replace")
-   if e.code in (429,500,502,503,504) and attempt<2:
-    time.sleep(2**attempt);continue
-   raise RuntimeError("Gemini HTTP "+str(e.code)+": "+raw[:500])
- raise RuntimeError("Gemini応答を取得できませんでした")
-
-def run_gemini_integrated(command,learning):
- lessons="\n".join("テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 映像="+str(x.get("visual",""))+"/5 改善="+str(x.get("improve","")) for x in learning[-12:])
- roles=[r for r,_ in ROLE_TASKS]
- prompt=f"""秘密基地3.2の統合AIとして、1回の生成で11工程分の完成成果物を作ってください。
-依頼：{command}
-前回評価：{lessons or "なし"}
-工程：{json.dumps(roles,ensure_ascii=False)}
-最低品質：1080x1920、9:16、冒頭2秒フック、2〜6秒程度の画面変化、白字幕＋黒フチ、権利安全な音声、CTA、ウォーターマークなし。
-安全：特定人物、とくに芸能人の無断利用禁止。権利不明素材禁止。外部投稿・ログイン・金銭操作禁止。未確認情報を断定しない。参考動画は品質特性だけを学び転載・模倣しない。
-JSONのみで返してください。キーは purpose,research,strategy,plan,information,budget,script,evidence,video,edit,implementation。各値は日本語の具体的成果物。implementationには「完成成果物」「前回評価の反映」「自己検査」を含める。"""
- out=ask_gemini(prompt)
- try:return json.loads(out)
- except Exception:
-  m=re.search(r"\{.*\}",out,re.S)
-  if not m: raise RuntimeError("Gemini統合出力のJSON解析に失敗しました")
-  return json.loads(m.group(0))
-
-
 def run_pipeline(command,learning):
+ if not KEY: raise RuntimeError("OPENAI_API_KEYが未設定のため実AIを実行できません")
  previous="なし";trace=[];outputs=[]
- lessons="\n".join("テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 映像="+str(x.get("visual",""))+"/5 改善="+str(x.get("improve","")) for x in learning[-12:])
+ lessons="\n".join(
+  "テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 映像="+str(x.get("visual",""))+"/5 失敗="+str(x.get("failure",""))+" 改善="+str(x.get("improve",""))+" 継続="+str(x.get("worked",""))
+  for x in learning[-12:]
+ )
  benchmark=json.dumps(REFERENCE_BENCHMARK,ensure_ascii=False)
- provider=AI_PROVIDER if AI_PROVIDER in ("openai","gemini") else ("openai" if KEY else "gemini" if GEMINI_KEY else "none")
- if provider=="gemini":
-  data=run_gemini_integrated(command,learning)
-  keys=["purpose","research","strategy","plan","information","budget","script","evidence","video","edit","implementation"]
-  for (role,_),key in zip(ROLE_TASKS,keys):
-   out=str(data.get(key,"")).strip()
-   if not out: raise RuntimeError("Gemini output missing: "+role)
-   outputs.append((role,out));trace.append({"agent":role,"status":"completed","provider":"gemini","output_summary":out[:220]})
- elif provider=="openai":
-  try:
-   for role,task in ROLE_TASKS:
-    prompt=f"""あなたは秘密基地3.2の{role}担当です。具体的な成果物を作ってください。
+ for role,task in ROLE_TASKS:
+  prompt=f"""あなたは秘密基地3.1の{role}担当です。雰囲気だけの報告は禁止。あなた自身の担当工程で、次担当がそのまま使える具体的な成果物を作ってください。
 ユーザー依頼：{command}
-前回評価：{lessons or "なし"}
-前担当：{previous[-7000:]}
-担当：{task}
-品質基準：{benchmark}
-安全：特定人物、とくに芸能人の無断利用禁止。権利不明素材禁止。外部投稿・ログイン・金銭操作禁止。未確認情報を断定しない。
-参考動画は品質特性だけを学び、転載・模倣しない。"""
-    out=ask_openai(prompt);time.sleep(1.0)
-    if not out: raise RuntimeError(role+" output empty")
-    outputs.append((role,out));trace.append({"agent":role,"status":"completed","provider":"openai","output_summary":out[:220]});previous=out
-  except RuntimeError as e:
-   if str(e)=="OPENAI_"+"QUOTA_"+"EXHAUSTED" and GEMINI_KEY:
-    data=run_gemini_integrated(command,learning)
-    keys=["purpose","research","strategy","plan","information","budget","script","evidence","video","edit","implementation"]
-    outputs=[];trace=[]
-    for (role,_),key in zip(ROLE_TASKS,keys):
-     out=str(data.get(key,"")).strip()
-     if not out: raise RuntimeError("Gemini output missing: "+role)
-     outputs.append((role,out));trace.append({"agent":role,"status":"completed","provider":"gemini-auto","output_summary":out[:220]})
-   else: raise
- else:
-  raise RuntimeError("No AI provider configured")
+前回の人間評価（今回必ず反映。特に『改善』は優先度最高）：{lessons or "なし"}
+前担当の実成果：{previous[-7000:]}
+あなたの担当：{task}
+参考動画の最低品質基準：{benchmark}
+共通安全ルール：特定人物、とくに芸能人の無断利用禁止。権利不明素材禁止。トレンドは構造だけ学習。外部投稿・ログイン・金銭操作禁止。未確認情報は断定しない。
+重要：参考動画そのものを転載・模倣・再利用せず、品質特性だけを抽出する。最終成果物は独自内容にする。"""
+  out=ask(prompt)
+  time.sleep(1.0)
+  if not out: raise RuntimeError(role+"の出力が空です")
+  outputs.append((role,out));trace.append({"agent":role,"status":"completed","output_summary":out[:220]});previous=out
  artifact=outputs[-1][1]
- q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":outputs[10][1],"improvement":lessons},command)
- used_provider="gemini" if trace and trace[0].get("provider","").startswith("gemini") else "openai"
- return artifact,trace,q,used_provider
-
+ q=quality({
+  "purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],
+  "plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],
+  "video":outputs[8][1],"edit":outputs[9][1],"implementation":outputs[10][1],
+  "improvement":lessons
+ },command)
+ return artifact,trace,q
 
 class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
@@ -214,4 +174,3 @@ class Handler(BaseHTTPRequestHandler):
  def log_message(self,*a):pass
 
 ThreadingHTTPServer(("0.0.0.0",PORT),Handler).serve_forever()
-
