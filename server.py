@@ -174,3 +174,5 @@ class Handler(BaseHTTPRequestHandler):
  def log_message(self,*a):pass
 
 ThreadingHTTPServer(("0.0.0.0",PORT),Handler).serve_forever()
+
+# provider fallback integration
