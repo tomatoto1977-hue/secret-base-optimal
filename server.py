@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.3.0"
+VERSION="3.3.1"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -106,7 +106,10 @@ def run_integrated_alt(command,learning):
  body=json.dumps({"model":ALT_MODEL,"messages":[{"role":"user","content":prompt}],"max_tokens":2200}).encode()
  req=urllib.request.Request(url,data=body,headers={"Authorization":"Bearer "+ALT_TOKEN,"Content-Type":"application/json"})
  with urllib.request.urlopen(req,timeout=180) as r:data=json.load(r)
- raw=str(data.get("choices",[{}])[0].get("message",{}).get("content","")).strip()
+ msg=data.get("choices",[{}])[0].get("message",{})
+ raw=msg.get("content","") if isinstance(msg,dict) else ""
+ if isinstance(raw,list): raw="\n".join(str(x.get("text","")) if isinstance(x,dict) else str(x) for x in raw)
+ raw=str(raw).strip()
  if raw.startswith("```"): raw=re.sub(r"^```(?:json)?\\s*|\\s*```$","",raw,flags=re.I|re.S).strip()
  try: obj=json.loads(raw)
  except Exception as e: raise RuntimeError("統合AIのJSON解析に失敗しました: "+str(e))
