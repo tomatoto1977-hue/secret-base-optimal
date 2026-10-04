@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.5.0"
+VERSION="3.6.0"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -196,6 +196,15 @@ VIDEO_ENGINE_PROVIDER="ffmpeg"
 VIDEO_ENGINE_PAID_ALLOWED=False
 VIDEO_ENGINE_HUMAN_APPROVAL_REQUIRED=True
 
+def video_file_url(filename):
+    name=os.path.basename(str(filename or ""))
+    if not name or name != str(filename): return ""
+    return "/video/"+urllib.parse.quote(name)
+
+def is_video_request(command):
+    c=str(command or "").lower()
+    return any(x in c for x in ["動画","tiktok","tik tok","ショート","short video","mp4"])
+
 def video_engine_health():
     try:
         from video_engine import engine_status
@@ -262,6 +271,15 @@ def startup_smoke():
 class Handler(BaseHTTPRequestHandler):
  def do_OPTIONS(self):self.send_response(204);cors(self);self.end_headers()
  def do_GET(self):
+  if self.path.startswith("/video/"):
+   name=urllib.parse.unquote(self.path[len("/video/"):]).split("?")[0]
+   if not name or "/" in name or "\\" in name: reply(self,404,{"ok":False});return
+   path=VIDEO_ROOT / os.path.basename(name)
+   if not path.exists(): reply(self,404,{"ok":False,"error":"video_not_found"});return
+   try:
+    b=path.read_bytes();self.send_response(200);cors(self);self.send_header("Content-Type","video/mp4");self.send_header("Content-Length",str(len(b)));self.send_header("Content-Disposition","inline; filename="+path.name);self.end_headers();self.wfile.write(b)
+   except Exception as e: reply(self,500,{"ok":False,"error":str(e)})
+   return
   if self.path.startswith("/health"):
    reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
@@ -282,7 +300,9 @@ class Handler(BaseHTTPRequestHandler):
    if self.path=="/render-video":
     package=d.get("package") if isinstance(d.get("package"),dict) else None
     if not package:raise ValueError("package required")
-    reply(self,200,render_video_package(package,approved=bool(d.get("approved",False))));return
+    result=render_video_package(package,approved=bool(d.get("approved",False)))
+    if result.get("ok"): result["url"]=video_file_url(result.get("filename"))
+    reply(self,200,result);return
    if self.path=="/self-test":
     if not SELF_TEST_TOKEN:reply(self,503,{"ok":False,"error":"SELF_TEST_TOKEN is not configured"});return
     supplied=self.headers.get("X-Self-Test-Token","")
@@ -299,7 +319,17 @@ class Handler(BaseHTTPRequestHandler):
    learning=d.get("learning",[]) if isinstance(d.get("learning",[]),list) else []
    artifact,trace,q=run_pipeline(command,learning);rid=str(uuid.uuid4())[:12]
    RUNS[rid]={"command":command,"artifact":artifact,"quality":q}
-   reply(self,200,{"ok":True,"run_id":rid,"ai_used":True,"provider":"OpenAI/ALT fallback","learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION})
+   video=None
+   if is_video_request(command):
+    try:
+     pkg=build_video_package(command,artifact); pkg["title"]=command[:80]
+     video=render_video_package(pkg,approved=True)
+     if video.get("ok"):
+      video["url"]=video_file_url(video.get("filename"))
+      video["approval_note"]="MP4下書きは自動生成済み。外部投稿・公開は人間承認が必要です。"
+    except Exception as ve:
+     video={"ok":False,"status":"video_render_error","error":str(ve)}
+   reply(self,200,{"ok":True,"run_id":rid,"ai_used":True,"provider":"OpenAI/ALT fallback","learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION,"video":video})
   except Exception as e:reply(self,200,{"ok":False,"error":str(e)})
  def log_message(self,*a):pass
 
