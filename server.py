@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.6.0"
+VERSION="3.6.1"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -311,6 +311,14 @@ class Handler(BaseHTTPRequestHandler):
     if supplied!=SELF_TEST_TOKEN:reply(self,401,{"ok":False,"error":"self-test authorization required"});return
     results=run_smoke_test();passed=sum(1 for x in results if x.get("ok") and x.get("all_11_completed") and x.get("quality",{}).get("passed"));safe=safety_static_test()
     reply(self,200,{"ok":passed==3 and safe["passed"]==safe["total"],"suite":"real-ai-3x-plus-safety","passed":passed,"total":3,"safety":safe,"results":results});return
+   if self.path=="/research":
+    query=str(d.get("query","")).strip()
+    if not query: raise ValueError("research query required")
+    items=research_news(query,10)
+    learning=d.get("learning",[]) if isinstance(d.get("learning",[]),list) else []
+    selected=choose_research_theme(query,items,learning)
+    reply(self,200,{"ok":True,"query":query,"items":items,"selected_theme":selected,"learning_applied":bool(learning),"learning_effects":learning_effects(learning)})
+    return
    if self.path=="/evaluate":
     if not d.get("run_id"):raise ValueError("対象runがありません")
     item={"created_at":datetime.now(timezone.utc).isoformat(),"run_id":d["run_id"],"theme":d.get("theme",""),"overall":int(d.get("overall",0)),"visual":int(d.get("visual",0)),"failure":d.get("failure",""),"improve":d.get("improve",""),"worked":d.get("worked","")}
