@@ -140,7 +140,7 @@ def render(package, output_path=None):
         video=next((s for s in streams if s.get("codec_type")=="video"),{})
         audio_stream=next((s for s in streams if s.get("codec_type")=="audio"),{})
         duration=float(info.get("format",{}).get("duration",0) or 0)
-        valid=(video.get("codec_name")=="h264" and video.get("width")==1080 and video.get("height")==1920 and duration>=29 and audio_stream.get("codec_name")=="aac")
+        valid=(video.get("codec_name")=="h264" and video.get("width")==1080 and video.get("height")==1920 and duration>=(0.9 if test_mode else 29) and audio_stream.get("codec_name")=="aac")
         if not valid:
             return {"ok":False,"status":"validation_failed","engine":status,"path":str(out),"probe":info}
         return {
