@@ -25,3 +25,28 @@ def render(package, output_path=None):
         return {"ok":True,"status":"rendered","engine":status,"path":output_path,"format":{"width":1080,"height":1920,"fps":30,"container":"mp4"}}
     except Exception as e:
         return {"ok":False,"status":"render_exception","engine":status,"error":str(e)}
+
+
+def self_test():
+    status=engine_status()
+    if not status["available"]:
+        return {"ok":False,"status":"ffmpeg_unavailable","engine":status}
+    import json, tempfile, subprocess, os
+    fd,path=tempfile.mkstemp(suffix=".mp4"); os.close(fd)
+    try:
+        cmd=["ffmpeg","-y","-f","lavfi","-i","color=c=black:s=1080x1920:r=30","-t","1",
+             "-c:v","libx264","-pix_fmt","yuv420p","-movflags","+faststart",path]
+        p=subprocess.run(cmd,capture_output=True,text=True,timeout=120)
+        if p.returncode!=0:
+            return {"ok":False,"status":"render_failed","error":p.stderr[-500:]}
+        q=subprocess.run(["ffprobe","-v","error","-show_entries","stream=codec_name,width,height,r_frame_rate,duration","-of","json",path],
+                         capture_output=True,text=True,timeout=30)
+        if q.returncode!=0:
+            return {"ok":False,"status":"probe_failed","error":q.stderr[-500:]}
+        info=json.loads(q.stdout)
+        st=info.get("streams",[{}])[0]
+        valid=(st.get("codec_name")=="h264" and st.get("width")==1080 and st.get("height")==1920 and float(st.get("duration",0))>=0.9)
+        return {"ok":valid,"status":"passed" if valid else "validation_failed","engine":status,"probe":st}
+    finally:
+        try: os.remove(path)
+        except OSError: pass

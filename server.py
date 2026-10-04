@@ -267,4 +267,8 @@ if RUN_SMOKE_ON_START and ALT_TOKEN:
  import threading
  threading.Thread(target=startup_smoke,daemon=True).start()
 print("VIDEO_ENGINE_STARTUP",json.dumps(video_engine_health(),ensure_ascii=False),flush=True)
+try:
+ from video_engine import self_test
+ print("VIDEO_ENGINE_SELF_TEST",json.dumps(self_test(),ensure_ascii=False),flush=True)
+except Exception as e: print("VIDEO_ENGINE_SELF_TEST",json.dumps({"ok":False,"error":str(e)},ensure_ascii=False),flush=True)
 ThreadingHTTPServer(("0.0.0.0",PORT),Handler).serve_forever()
