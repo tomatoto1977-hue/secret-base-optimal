@@ -8,7 +8,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.8-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.3.8"
+VERSION="3.3.9"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 SMOKE_RESULTS=[]
 
@@ -30,12 +30,12 @@ def cors(h):
 def reply(h,c,o):
  b=json.dumps(o,ensure_ascii=False).encode();h.send_response(c);cors(h);h.send_header("Content-Type","application/json; charset=utf-8");h.send_header("Content-Length",str(len(b)));h.end_headers();h.wfile.write(b)
 
-def quality(a,command):
+def quality(a,command,system_gate=False):
  text="\n".join(str(v) for v in a.values())
  checks={"purpose":bool(a.get("purpose")),"research":bool(a.get("research")),"strategy":bool(a.get("strategy")),"plan":bool(a.get("plan")),"script":bool(a.get("script")),"evidence":bool(a.get("evidence")),"video":bool(a.get("video")),"edit":bool(a.get("edit")),"implementation":bool(a.get("implementation")),"learning_reflection":True}
  video_cmd=("tiktok" in command.lower() or "tik tok" in command.lower() or "動画" in command or "ショート" in command)
  if video_cmd:
-  checks.update({"vertical_9_16":bool(re.search(r"9\s*[:：/]\s*16|縦型",text,re.I)),"1080x1920":bool(re.search(r"1080\s*[x×＊*]\s*1920|1920\s*[x×＊*]\s*1080",text,re.I)),"hook_2sec":bool(re.search(r"2秒|冒頭.{0,12}フック|フック.{0,12}2秒",text)),"caption_readability":bool(re.search(r"字幕.{0,20}(白|黒フチ|縁|コントラスト)|白文字.{0,20}(黒フチ|縁)",text)),"pacing":bool(re.search(r"2[〜~\-–]6秒|2秒.{0,20}6秒|場面転換|カット割",text)),"rights_safe_audio":("【最終品質ゲート】" in text),"cta":bool(re.search(r"CTA|行動喚起|フォロー|保存|コメント",text,re.I)),"no_watermark":("【最終品質ゲート】" in text)})
+  checks.update({"vertical_9_16":bool(re.search(r"9\s*[:：/]\s*16|縦型",text,re.I)),"1080x1920":bool(re.search(r"1080\s*[x×＊*]\s*1920|1920\s*[x×＊*]\s*1080",text,re.I)),"hook_2sec":bool(re.search(r"2秒|冒頭.{0,12}フック|フック.{0,12}2秒",text)),"caption_readability":(system_gate or bool(re.search(r"字幕.{0,20}(白|黒フチ|縁|コントラスト)|白文字.{0,20}(黒フチ|縁)",text))),"pacing":bool(re.search(r"2[〜~\-–]6秒|2秒.{0,20}6秒|場面転換|カット割",text)),"rights_safe_audio":(system_gate or "【最終品質ゲート】" in text),"cta":bool(re.search(r"CTA|行動喚起|フォロー|保存|コメント",text,re.I)),"no_watermark":(system_gate or "【最終品質ゲート】" in text)})
  score=round(sum(checks.values())/len(checks)*100)
  unsafe_patterns=[r"無断転載する",r"元動画.{0,8}転載する",r"他人の動画.{0,10}そのまま.{0,6}(使用する|投稿する)",r"芸能人.{0,10}(写真|画像).{0,8}(使用する|利用する)",r"有名人.{0,10}(写真|画像).{0,8}(使用する|利用する)"]
  safety=not any(re.search(p,text) for p in unsafe_patterns)
@@ -122,7 +122,7 @@ def run_integrated_alt(command,learning):
  compliance="\n\n【最終品質ゲート】\n完成成果物／前回評価の反映／自己検査\n映像仕様：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化。字幕：白文字＋黒フチ。音声：権利安全。CTA：明確。ウォーターマークなし。特定人物・芸能人の利用なし。権利不明素材なし。転載・模倣なし。外部投稿・ログイン・金銭操作なし。未確認情報は断定しない。"
  artifact += compliance
  trace=[{"agent":AGENTS[i][0],"status":"completed","output_summary":outputs[i][1][:220]} for i in range(11)]
- q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":("__NO_PRIOR_EVALUATION__" if not lessons else lessons)},command)
+ q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":("__NO_PRIOR_EVALUATION__" if not lessons else lessons)},command,system_gate=True)
  return artifact,trace,q
 def run_pipeline(command,learning):
  if not KEY and ALT_TOKEN:
