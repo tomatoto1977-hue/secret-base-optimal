@@ -58,9 +58,10 @@ def render(package, output_path=None):
     artifact = str(package.get("production_spec","") or package.get("artifact",""))
     chunks = _scene_text(artifact, command)
     title = _clean(package.get("title") or command or "秘密基地")
-    # Six 5-second scenes = 30 seconds. This is a real draft MP4, not a specification.
-    scene_count = 6
-    scene_duration = 5
+    test_mode = bool(package.get("test_mode", False))
+    # Production: six 5-second scenes. Self-test: one short scene to keep service startup fast.
+    scene_count = 1 if test_mode else 6
+    scene_duration = 1 if test_mode else 5
     total = scene_count * scene_duration
     if output_path is None:
         output_path = str(VIDEO_ROOT / ("video_" + uuid.uuid4().hex[:12] + ".mp4"))
@@ -157,7 +158,7 @@ def self_test():
     status=engine_status()
     if not status["available"]:
         return {"ok":False,"status":"ffmpeg_unavailable","engine":status}
-    pkg={"command":"テスト動画","production_spec":"完成成果物。9:16。1080x1920。冒頭2秒フック。2〜6秒。白文字。黒フチ。CTA。"}
+    pkg={"command":"テスト動画","production_spec":"完成成果物。9:16。1080x1920。冒頭2秒フック。2〜6秒。白文字。黒フチ。CTA。","test_mode":True}
     path=str(VIDEO_ROOT / ("selftest_"+uuid.uuid4().hex[:8]+".mp4"))
     r=render(pkg,path)
     if r.get("ok"):
