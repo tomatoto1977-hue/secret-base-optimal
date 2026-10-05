@@ -1,4 +1,4 @@
-import json, os, re, shutil, subprocess, tempfile, textwrap, uuid, sys
+import json, os, re, shutil, subprocess, tempfile, textwrap, uuid, sys, urllib.request
 from pathlib import Path
 
 VIDEO_ROOT = Path(os.environ.get("VIDEO_OUTPUT_DIR", "/tmp/secret-base-videos"))
@@ -26,23 +26,18 @@ def _font_file():
     for p in candidates:
         if Path(p).exists():
             return p
-    # Render Free currently exposes DejaVu but not a Japanese-capable font.
-    # Install a small free font package only when needed, then use its bundled IPAex font.
+    # Last fallback: fetch the openly licensed IPAex Gothic font once into the
+    # service's temporary working directory. This is a static font asset, not a
+    # video-generation SaaS dependency.
     try:
-        pip = subprocess.run(["python","-m","pip","install","--quiet","--disable-pip-version-check","pyxel-universal-font==1.1.1"],capture_output=True,text=True,timeout=120)
-        roots=[Path(sys.prefix),Path("/usr/local"),Path("/opt/render")]
-        for root in roots:
-            for pattern in ("**/site-packages/**/ipaexg.ttf","**/site-packages/**/IPAexGothic.ttf","**/site-packages/**/ipa*.ttf","**/site-packages/**/*.otf"):
-                for p in root.glob(pattern):
-                    if p.exists() and ("ipa" in p.name.lower() or "gothic" in p.name.lower()):
-                        return str(p)
-        # Last resort: install the Debian IPAex Gothic font if the runtime allows apt.
-        apt = subprocess.run(["apt-get","update","-qq"],capture_output=True,text=True,timeout=60)
-        if apt.returncode == 0:
-            apt2 = subprocess.run(["apt-get","install","-y","-qq","fonts-ipaexfont-gothic"],capture_output=True,text=True,timeout=120)
-            if apt2.returncode == 0:
-                for p in Path("/usr/share/fonts").glob("**/*ipa*.[to]tf"):
-                    if p.exists(): return str(p)
+        font_path = VIDEO_ROOT / "ipaexg.ttf"
+        if not font_path.exists():
+            urllib.request.urlretrieve(
+                "https://raw.githubusercontent.com/uehara1414/japanize-matplotlib/master/japanize_matplotlib/fonts/ipaexg.ttf",
+                str(font_path)
+            )
+        if font_path.exists() and font_path.stat().st_size > 1000000:
+            return str(font_path)
     except Exception as e:
         print("JAPANESE_FONT_FALLBACK_ERROR", str(e)[:500], flush=True)
     return ""
