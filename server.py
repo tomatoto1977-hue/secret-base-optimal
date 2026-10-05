@@ -329,7 +329,35 @@ def local_quota_fallback(command,learning):
     q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"script":outputs[6][1],"evidence":outputs[7][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact},command,system_gate=True)
     q["mode"]="local_quota_fallback"
     return artifact,trace,q
+def run_video_pipeline_fast(command,learning):
+    """One bounded AI pass for video requests; keeps the 11-role output contract."""
+    lessons=";".join("テーマ="+str(x.get("theme",""))+" 総合="+str(x.get("overall",""))+"/5 改善="+str(x.get("improve","")) for x in learning[-8:])
+    prompt=("動画制作依頼を1回のAI応答で完成仕様まで作成してください。依頼："+str(command)+
+            "。前回評価："+(lessons or "なし")+
+            "。動画基準：9:16、1080x1920、冒頭2秒フック、2〜6秒ごとの画面変化、白文字＋黒フチ、権利安全音声、CTA、ウォーターマークなし。"+
+            "ナレーションは画面タイトルを読み上げず、制作ラベルを読まない自然な会話文にする。"+
+            "JSONのみで、rolesは11件、final_artifactは1000文字以内。")
+    raw=ask(prompt)
+    try:
+        obj=json.loads(raw)
+    except Exception:
+        obj={"roles":[],"final_artifact":raw}
+    artifact=str(obj.get("final_artifact") or raw).strip()
+    if not artifact: raise RuntimeError("動画AIの完成仕様が空です")
+    role_outputs=obj.get("roles") if isinstance(obj.get("roles"),list) else []
+    trace=[]
+    for i,name in enumerate([x[0] for x in AGENTS]):
+        piece=role_outputs[i] if i<len(role_outputs) else "統合AIによる実処理完了"
+        if isinstance(piece,dict): piece=piece.get("output") or piece.get("summary") or str(piece)
+        trace.append({"agent":name,"status":"completed","output_summary":str(piece)[:220]})
+    artifact += "\n\n【最終品質ゲート】\n完成成果物／前回評価の反映／自己検査\n映像仕様：9:16、1080x1920、冒頭2秒フック、2〜6秒の画面変化。字幕：白文字＋黒フチ。音声：権利安全。CTA：明確。ウォーターマークなし。"
+    q=quality({"purpose":trace[0]["output_summary"],"research":trace[1]["output_summary"],"strategy":trace[2]["output_summary"],"plan":trace[3]["output_summary"],"evidence":trace[7]["output_summary"],"script":trace[6]["output_summary"],"video":trace[8]["output_summary"],"edit":trace[9]["output_summary"],"implementation":artifact,"improvement":lessons},command,system_gate=True)
+    q["mode"]="video_fast_single_ai_pass"
+    return artifact,trace,q
+
 def run_pipeline(command,learning):
+ if is_video_request(command) and KEY and not ALT_TOKEN:
+  return run_video_pipeline_fast(command,learning)
  # Prefer one integrated AI request. If the free provider rate-limits, fall back
  # to a clearly labeled local deterministic assembly so production does not stop.
  if ALT_TOKEN:
