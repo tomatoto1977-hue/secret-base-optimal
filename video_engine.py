@@ -15,7 +15,7 @@ def _font_file():
     # than passing a font family name to FFmpeg's drawtext on minimal Render images.
     try:
         p = subprocess.check_output(["fc-match","-f","%{file}","Noto Sans CJK JP"], text=True, timeout=5).strip()
-        if p and Path(p).exists():
+        if p and Path(p).exists() and "dejavu" not in p.lower():
             return p
     except Exception:
         pass
@@ -30,10 +30,10 @@ def _font_file():
     # Install a small free font package only when needed, then use its bundled IPAex font.
     try:
         pip = subprocess.run(["python","-m","pip","install","--quiet","--disable-pip-version-check","pyxel-universal-font==1.1.1"],capture_output=True,text=True,timeout=120)
-        roots=[Path(sys.prefix)/"lib"]
+        roots=[Path(sys.prefix),Path("/usr/local"),Path("/opt/render")]
         for root in roots:
-            for pattern in ("**/ipaexg.ttf","**/IPAexGothic.ttf","**/ipa*.ttf","**/*.otf"):
-                for p in root.glob("python*/site-packages/"+pattern):
+            for pattern in ("**/site-packages/**/ipaexg.ttf","**/site-packages/**/IPAexGothic.ttf","**/site-packages/**/ipa*.ttf","**/site-packages/**/*.otf"):
+                for p in root.glob(pattern):
                     if p.exists() and ("ipa" in p.name.lower() or "gothic" in p.name.lower()):
                         return str(p)
         # Last resort: install the Debian IPAex Gothic font if the runtime allows apt.
@@ -43,8 +43,8 @@ def _font_file():
             if apt2.returncode == 0:
                 for p in Path("/usr/share/fonts").glob("**/*ipa*.[to]tf"):
                     if p.exists(): return str(p)
-    except Exception:
-        pass
+    except Exception as e:
+        print("JAPANESE_FONT_FALLBACK_ERROR", str(e)[:500], flush=True)
     return ""
 
 def _clean(text):
