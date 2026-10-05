@@ -18,6 +18,20 @@ AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","た
 LEARNING=[]
 RUNS={}
 
+# Conservative copyright-topic filter for production themes.
+COPYRIGHT_TOPIC_TERMS = [
+    "ドラゴンズドグマ", "KINGDOM HEARTS", "キングダムハーツ",
+    "ドラゴンクエスト", "ポケットモンスター", "ポケモン",
+    "鬼滅の刃", "ONE PIECE", "ワンピース", "呪術廻戦",
+    "進撃の巨人", "名探偵コナン", "マリオ", "ゼルダの伝説",
+    "ゲーム", "アニメ", "漫画", "コミック", "映画", "ドラマ",
+    "キャラクター", "楽曲", "歌詞", "サウンドトラック"
+]
+
+def rights_safe_topic(text):
+    s=str(text or "").lower()
+    return not any(term.lower() in s for term in COPYRIGHT_TOPIC_TERMS)
+
 REFERENCE_BENCHMARK={
  "source":"ユーザー提供TikTok参考動画","duration_seconds":93.7,"aspect_ratio":"9:16","reference_resolution":"512x910","minimum_target_resolution":"1080x1920",
  "visual":"全画面の高密度ビジュアル。場面転換で飽きさせず、主役が明確。","captions":"白文字＋黒フチ等で高コントラスト。画面下部の安全領域内で常時読みやすい。",
@@ -54,6 +68,7 @@ def learning_effects(learning):
     return effects[-8:]
 
 def choose_research_theme(query, items, learning):
+    items=[x for x in items if rights_safe_topic(x.get('title',''))]
     effects=learning_effects(learning); titles='\n'.join('- '+x['title']+' ['+x.get('publisher','')+']' for x in items[:10]); lessons='\n'.join(effects) or 'なし'
     if ALT_TOKEN and items:
         prompt=('秘密基地最適版のテーマ選定担当です。最新リサーチ候補から、権利安全で独自制作しやすく、視聴者の課題が明確なテーマを1つ選んでください。'
@@ -64,14 +79,15 @@ def choose_research_theme(query, items, learning):
             if raw.startswith('```'):
                 raw=raw.split('\n',1)[1] if '\n' in raw else raw
                 if raw.endswith('```'): raw=raw[:-3].strip()
-            return json.loads(raw)
+            obj=json.loads(raw)
+            if rights_safe_topic(obj.get('theme','')): return obj
         except Exception: pass
     seen=set(str(x.get('theme','')).strip() for x in learning if x.get('theme')); scores=[]
     for it in items:
         score=1 + (0 if it['title'] in seen else 2)
         scores.append((score,it))
-    best=max(scores,key=lambda x:x[0])[1] if scores else {'title':query}
-    return {'theme':best['title'],'reason':'最新リサーチ候補から重複を抑えて選定','angle':'視聴者の困りごとから具体的な行動へ','learning_applied':'過去テーマの重複抑制と評価改善を反映'}
+    best=max(scores,key=lambda x:x[0])[1] if scores else {'title':'今日からできる固定費の見直し'}
+    return {'theme':best['title'],'reason':'権利安全フィルタ後の最新リサーチ候補から重複を抑えて選定','angle':'視聴者の困りごとから具体的な行動へ','learning_applied':'過去テーマの重複抑制と評価改善を反映'}
 def quality(a,command,system_gate=False):
  text="\n".join(str(v) for v in a.values())
  checks={"purpose":bool(a.get("purpose")),"research":bool(a.get("research")),"strategy":bool(a.get("strategy")),"plan":bool(a.get("plan")),"script":bool(a.get("script")),"evidence":bool(a.get("evidence")),"video":bool(a.get("video")),"edit":bool(a.get("edit")),"implementation":bool(a.get("implementation")),"learning_reflection":True}
