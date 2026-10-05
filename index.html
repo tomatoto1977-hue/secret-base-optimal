@@ -24,6 +24,7 @@ header{display:flex;justify-content:space-between;gap:10px;align-items:center}.b
 <section class="panel"><h3>🧠 学習履歴</h3><div id="memory" class="history">読み込み中…</div></section>
 </aside></div></div>
 <script>
+let learningMemory=[];
 const API='https://secret-base-optimal-api.onrender.com';
 const names=[['統括','さとる'],['市場調査','りょう'],['競争戦略','たくや'],['企画','まいか'],['情報収集','はると'],['予算','りの'],['文章化','れん'],['エビデンス','あかり'],['動画制作','かい'],['編集','なな'],['実装','ゆい']];
 const $=id=>document.getElementById(id);let lastRunId=null,running=false;let selectedTheme='';
@@ -93,10 +94,10 @@ async function run(){
     let local=[];try{local=JSON.parse(localStorage.getItem('sb3_learning')||'[]')}catch(e){}
     try{
       const lr=await fetch(API+'/learning');const lj=await lr.json();const serverLearning=Array.isArray(lj.items)?lj.items:[];
-      const merged=[...serverLearning,...memory];const seen=new Set();
-      memory=merged.filter(x=>{const k=JSON.stringify(x);if(seen.has(k))return false;seen.add(k);return true}).slice(-12);
+      const merged=[...serverLearning,...learningMemory];const seen=new Set();
+      learningMemory=merged.filter(x=>{const k=JSON.stringify(x);if(seen.has(k))return false;seen.add(k);return true}).slice(-12);
     }catch(e){}
-    const res=await fetch(API+'/run-job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command,learning:memory.slice(-12)})});
+    const res=await fetch(API+'/run-job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command,learning:learningMemory.slice(-12)})});
     const j=await res.json();if(!j.ok)throw new Error(j.error||'実行投入失敗');
     try{localStorage.setItem('sb3_active_run_job',j.job_id)}catch(e){}
     $('undergroundPanel').style.display='block';$('undergroundStatus').textContent='🕳️ 地下作業室に投入済み。画面を閉じてもサーバー側で継続します。';$('undergroundBar').style.width='3%';
