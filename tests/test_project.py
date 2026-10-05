@@ -23,7 +23,7 @@ def test_c_validation_is_not_real_mp4():
 
 def test_server_safety_controls():
     src=(ROOT/"server.py").read_text(encoding="utf-8")
-    assert 'VERSION="3.7.2"' in src
+    assert 'VERSION="3.8.0"' in src
     assert "COPYRIGHT_TOPIC_TERMS" in src
     assert "SELF_TEST_TOKEN" in src
     assert "RUN_SMOKE_ON_START" in src
@@ -32,3 +32,12 @@ def test_reply_handles_client_disconnect():
     src=(ROOT/"server.py").read_text(encoding="utf-8")
     assert "BrokenPipeError" in src
     assert "ConnectionResetError" in src
+
+
+def test_video_quality_policy_and_external_editors():
+    src=(ROOT/"video_engine.py").read_text(encoding="utf-8")
+    assert "motion_graphics_draft" in src
+    assert "final_pass" in src
+    assert "CapCut" in src and "Canva" in src and "Adobe Express" in src
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert '"duration_seconds":71.05' in server

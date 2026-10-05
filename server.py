@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.7.2"
+VERSION="3.8.0"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -33,11 +33,11 @@ def rights_safe_topic(text):
     return not any(term.lower() in s for term in COPYRIGHT_TOPIC_TERMS)
 
 REFERENCE_BENCHMARK={
- "source":"ユーザー提供TikTok参考動画","duration_seconds":93.7,"aspect_ratio":"9:16","reference_resolution":"512x910","minimum_target_resolution":"1080x1920",
+ "source":"ユーザー提供MP4参考動画","duration_seconds":71.05,"aspect_ratio":"9:16","reference_resolution":"512x910","minimum_target_resolution":"1080x1920",
  "visual":"全画面の高密度ビジュアル。場面転換で飽きさせず、主役が明確。","captions":"白文字＋黒フチ等で高コントラスト。画面下部の安全領域内で常時読みやすい。",
  "pacing":"冒頭2秒以内にフック。静止画の連続にせず、概ね2〜6秒単位で画面変化を設計。",
  "audio":"ナレーション・効果音・BGMを役割分担し、権利確認済み/生成可能な素材だけを使用。",
- "finish":"TikTok向け完成仕様として、タイトル、台本、カット、字幕、音声、編集、CTAまで具体化."
+ "finish":"TikTok向け完成仕様として、タイトル、台本、カット、字幕、音声、編集、CTAまで具体化。最終版は実写/生成ビジュアル素材＋ナレーション＋BGM/SFX＋トランジションを含む。無料外部編集で仕上げ、人間確認後に合格とする."
 }
 
 def cors(h):
