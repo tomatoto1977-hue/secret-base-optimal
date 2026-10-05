@@ -358,8 +358,8 @@ def render(package, output_path=None):
             x_expr = "iw/2-(iw/zoom/2)+sin(on*0.025)*18"
             y_expr = "ih/2-(ih/zoom/2)+cos(on*0.021)*24"
             vf = (
-                f"scale=1080:1920,"
-                f"zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={int(scene_duration*30)}:s=1080x1920:fps=30,"
+                f"scale=720:1280,"
+                f"zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={int(scene_duration*30)}:s=720x1280:fps=30,"
                 f"eq=contrast=1.04:saturation=1.08,"
                 f"fade=t=in:st=0:d=0.32,fade=t=out:st={max(scene_duration-0.36,0.5):.2f}:d=0.36,"
                 f"drawbox=x=0:y=0:w=1080:h=1920:color=black@0.08:t=fill,"
@@ -379,7 +379,7 @@ def render(package, output_path=None):
             cmd=[
                 "ffmpeg","-y","-loop","1","-i",str(svg),
                 "-t",str(scene_duration),"-vf",vf,
-                "-an","-c:v","libx264","-preset","ultrafast","-threads","1",
+                "-an","-c:v","libx264","-preset","ultrafast","-threads","2",
                 "-pix_fmt","yuv420p","-r","30",str(seg)
             ]
             p=subprocess.run(cmd,capture_output=True,text=True,timeout=150)
@@ -424,10 +424,10 @@ def render(package, output_path=None):
                 "-i",str(narration),"-i",str(audio),"-i",str(sfx),
                 "-filter_complex",
                 "[1:a]volume=1.0[voice];[2:a]volume=0.16[music];[3:a]volume=0.55[fx];"
-                "[voice][music][fx]amix=inputs=3:duration=longest:normalize=0,"
+                "[voice][music][fx]amix=inputs=3:duration=longest:normalize=0,scale=1080:1920,"
                 "loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
                 "-map","0:v:0","-map","[aout]",
-                "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p",
+                "-c:v","libx264","-preset","ultrafast","-threads","2","-pix_fmt","yuv420p",
                 "-r","30","-c:a","aac","-b:a","128k","-threads","1","-shortest",
                 "-movflags","+faststart",str(out)
             ],capture_output=True,text=True,timeout=300)
@@ -437,7 +437,7 @@ def render(package, output_path=None):
                 "-i",str(audio),"-i",str(sfx),
                 "-filter_complex",
                 "[1:a]volume=0.16[music];[2:a]volume=0.55[fx];"
-                "[music][fx]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
+                "[music][fx]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-15:TP=-1.5:LRA=9,scale=1080:1920[aout]",
                 "-map","0:v:0","-map","[aout]",
                 "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p",
                 "-r","30","-c:a","aac","-b:a","128k","-threads","1","-shortest",
