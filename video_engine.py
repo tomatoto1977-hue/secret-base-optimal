@@ -81,6 +81,49 @@ def _write_text(path, text):
 def _esc_filter_path(path):
     return str(path).replace("\\","/").replace(":","\\:")
 
+TTS_VOICE=os.environ.get("VIDEO_TTS_VOICE","ja-JP-NanamiNeural")
+TTS_VERSION="7.2.8"
+
+def _ensure_edge_tts():
+    try:
+        import edge_tts  # noqa: F401
+        return True
+    except Exception:
+        try:
+            subprocess.run(
+                [sys.executable,"-m","pip","install",f"edge-tts=={TTS_VERSION}","--quiet"],
+                capture_output=True,text=True,timeout=120,check=True
+            )
+            import edge_tts  # noqa: F401
+            return True
+        except Exception as e:
+            print("TTS_INSTALL_ERROR",str(e)[:500],flush=True)
+            return False
+
+def _make_narration_text(command, chunks):
+    parts=[_clean(command)[:70]]
+    for x in chunks[:5]:
+        s=_clean(x)
+        if s and s not in parts:
+            parts.append(s[:70])
+    parts.append("今日できることから一つ始めましょう。保存して後で見直してください。")
+    return "。".join(p.rstrip("。") for p in parts if p)+"。"
+
+def _render_narration(text, output_path):
+    if not _ensure_edge_tts():
+        return {"ok":False,"reason":"edge_tts_unavailable"}
+    try:
+        p=subprocess.run(
+            [sys.executable,"-m","edge_tts","--voice",TTS_VOICE,"--rate","+5%","--volume","+0%",
+             "--text",text,"--write-media",str(output_path)],
+            capture_output=True,text=True,timeout=90
+        )
+        if p.returncode!=0 or not Path(output_path).exists() or Path(output_path).stat().st_size<1000:
+            return {"ok":False,"reason":"tts_failed","error":p.stderr[-1200:]}
+        return {"ok":True,"voice":TTS_VOICE,"path":str(output_path)}
+    except Exception as e:
+        return {"ok":False,"reason":"tts_exception","error":str(e)}
+
 def render(package, output_path=None):
     status = engine_status()
     if not status["available"]:
@@ -168,24 +211,38 @@ def render(package, output_path=None):
         concat = work / "concat.txt"
         concat.write_text("".join(f"file '{p}'\n" for p in segment_files), encoding="utf-8")
 
-        # A synthetic music bed only: no copyrighted track is used.
+        # Rights-safe synthetic BGM + optional free neural narration.
         audio = work / "audio.wav"
         ap=subprocess.run([
             "ffmpeg","-y",
             "-f","lavfi","-i",f"sine=frequency=196:sample_rate=48000:duration={total}",
             "-f","lavfi","-i",f"sine=frequency=294:sample_rate=48000:duration={total}",
             "-f","lavfi","-i",f"sine=frequency=392:sample_rate=48000:duration={total}",
-            "-filter_complex","[0:a]volume=0.020[a0];[1:a]volume=0.012[a1];[2:a]volume=0.008[a2];[a0][a1][a2]amix=inputs=3:normalize=0,afade=t=in:st=0:d=0.8,afade=t=out:st="+str(max(0,total-2)) + ":d=2",
+            "-filter_complex","[0:a]volume=0.045[a0];[1:a]volume=0.028[a1];[2:a]volume=0.018[a2];[a0][a1][a2]amix=inputs=3:normalize=0,afade=t=in:st=0:d=0.8,afade=t=out:st="+str(max(0,total-2))+":d=2",
             "-c:a","pcm_s16le",str(audio)
         ],capture_output=True,text=True,timeout=60)
         if ap.returncode!=0:
             return {"ok":False,"status":"audio_render_error","engine":status,"error":ap.stderr[-1000:]}
 
-        p=subprocess.run([
-            "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-i",str(audio),
-            "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p","-r","30",
-            "-c:a","aac","-b:a","96k","-threads","1","-shortest","-movflags","+faststart",str(out)
-        ],capture_output=True,text=True,timeout=240)
+        narration = work / "narration.mp3"
+        narration_text = _make_narration_text(command,chunks)
+        tts_result = _render_narration(narration_text,narration)
+
+        if tts_result.get("ok"):
+            p=subprocess.run([
+                "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),
+                "-i",str(narration),"-i",str(audio),
+                "-filter_complex","[1:a]volume=1.0[voice];[2:a]volume=0.18[music];[voice][music]amix=inputs=2:duration=longest:normalize=0[aout]",
+                "-map","0:v:0","-map","[aout]",
+                "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p","-r","30",
+                "-c:a","aac","-b:a","128k","-threads","1","-shortest","-movflags","+faststart",str(out)
+            ],capture_output=True,text=True,timeout=240)
+        else:
+            p=subprocess.run([
+                "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-i",str(audio),
+                "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p","-r","30",
+                "-c:a","aac","-b:a","128k","-threads","1","-shortest","-movflags","+faststart",str(out)
+            ],capture_output=True,text=True,timeout=240)
         if p.returncode!=0:
             return {"ok":False,"status":"final_mux_error","engine":status,"error":p.stderr[-1500:]}
 
@@ -215,7 +272,7 @@ def render(package, output_path=None):
             "filename":out.name,"duration_seconds":round(duration,2),
             "format":{"width":1080,"height":1920,"fps":30,"container":"mp4","video_codec":"h264","audio_codec":"aac"},
             "scene_count":scene_count,"scene_change_seconds":5,
-            "quality_tier":"motion_graphics_draft",
+            "quality_tier":("motion_graphics_with_narration" if tts_result.get("ok") else "motion_graphics_draft"),
             "final_pass":False,
             "final_pass_reason":"ユーザー提供参考動画の最低ラインには、実写/生成ビジュアル素材＋ナレーション＋BGM/SFX＋編集演出が必要。無料外部編集で最終仕上げする設計。",
             "external_editors":[
