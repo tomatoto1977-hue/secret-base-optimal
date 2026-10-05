@@ -119,15 +119,24 @@ def render(package, output_path=None):
             seg = work / f"seg_{i}.mp4"
             # Different hue per scene. No external image/video assets are used.
             hue = [0.08,0.16,0.28,0.42,0.58,0.72][i]
-            color = ["#20192f","#182b35","#2b2234","#19312d","#30251c","#20233a"][i]
+            color = ["#6d4c7d","#356b73","#76505f","#3f735b","#80613e","#46547d"][i]
+            accent = ["#ffb07c","#8fe3d2","#ff9db5","#a7e58b","#ffd27a","#9bb8ff"][i]
+            scene_label = f"SCENE {i+1}/{scene_count}"
             vf = (
+                f"drawbox=x=0:y=0:w=1080:h=1920:color={color}:t=fill,"
+                f"drawbox=x=42:y=72:w=996:h=235:color=black@0.52:t=fill,"
+                f"drawbox=x=42:y=300:w=996:h=1240:color=black@0.32:t=fill,"
+                f"drawbox=x=42:y=1560:w=996:h=235:color=black@0.52:t=fill,"
+                f"drawbox=x=42:y=286:w=996:h=10:color={accent}:t=fill,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':text='{scene_label}':"
+                f"fontcolor={accent}:fontsize=38:borderw=2:bordercolor=black:x=75:y=105,"
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(title_file)}':"
-                f"fontcolor=white:fontsize=62:borderw=5:bordercolor=black:x=(w-text_w)/2:y=150,"
+                f"fontcolor=white:fontsize=58:borderw=5:bordercolor=black:x=(w-text_w)/2:y=155,"
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(body_file)}':"
                 f"fontcolor=white:fontsize=50:borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2-30:"
                 f"line_spacing=12,"
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(caption_file)}':"
-                f"fontcolor=white:fontsize=32:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-240"
+                f"fontcolor=white:fontsize=32:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-335"
             )
             cmd=[
                 "ffmpeg","-y","-f","lavfi","-i",f"color=c={color}:s=1080x1920:r=30",
@@ -181,7 +190,7 @@ def render(package, output_path=None):
             "format":{"width":1080,"height":1920,"fps":30,"container":"mp4","video_codec":"h264","audio_codec":"aac"},
             "scene_count":scene_count,"scene_change_seconds":5,
             "assets":"generated-only; no external SaaS media",
-            "quality":"draft MP4 validated by ffprobe"
+            "quality":"draft MP4 validated by ffprobe; visible scene layout and Japanese font required"
         }
     finally:
         shutil.rmtree(work, ignore_errors=True)
