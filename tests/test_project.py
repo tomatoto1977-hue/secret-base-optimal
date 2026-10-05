@@ -32,3 +32,12 @@ def test_reply_handles_client_disconnect():
     src=(ROOT/"server.py").read_text(encoding="utf-8")
     assert "BrokenPipeError" in src
     assert "ConnectionResetError" in src
+
+
+def test_video_quality_policy_and_external_editors():
+    src=(ROOT/"video_engine.py").read_text(encoding="utf-8")
+    assert "motion_graphics_draft" in src
+    assert "final_pass" in src
+    assert "CapCut" in src and "Canva" in src and "Adobe Express" in src
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert '"duration_seconds":71.05' in server
