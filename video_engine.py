@@ -192,7 +192,7 @@ def render(package, output_path=None):
         '''
         # Different scene-specific object compositions.
         if i == 0:
-            art = '''
+            art = f'''
             <rect x="150" y="420" width="780" height="900" rx="70" fill="#09101d" opacity=".88"/>
             <rect x="185" y="455" width="710" height="830" rx="55" fill="url(#glass)" stroke="#fff" stroke-opacity=".18" stroke-width="3"/>
             <rect x="250" y="540" width="580" height="470" rx="42" fill="#0b1220"/>
@@ -204,7 +204,7 @@ def render(package, output_path=None):
             <rect x="285" y="1210" width="300" height="26" rx="13" fill="#fff" opacity=".10"/>
             '''
         elif i == 1:
-            art = '''
+            art = f'''
             <ellipse cx="540" cy="1320" rx="330" ry="95" fill="#000" opacity=".35"/>
             <path d="M330 650 Q540 560 750 650 L715 1220 Q540 1320 365 1220Z" fill="#d9a441" opacity=".95"/>
             <path d="M365 700 Q540 615 715 700" fill="none" stroke="#fff1b8" stroke-width="20" opacity=".55"/>
@@ -214,7 +214,7 @@ def render(package, output_path=None):
             <circle cx="280" cy="1010" r="52" fill="{accent}" opacity=".7"/><circle cx="800" cy="1060" r="42" fill="{accent2}" opacity=".7"/>
             '''
         elif i == 2:
-            art = '''
+            art = f'''
             <rect x="170" y="520" width="740" height="760" rx="60" fill="#0b1020" stroke="#fff" stroke-opacity=".12" stroke-width="3"/>
             <rect x="220" y="590" width="640" height="130" rx="30" fill="#fff" opacity=".08"/>
             <rect x="260" y="625" width="210" height="42" rx="21" fill="{accent}" opacity=".85"/>
@@ -223,7 +223,7 @@ def render(package, output_path=None):
             <circle cx="390" cy="1080" r="24" fill="#fff"/><circle cx="650" cy="950" r="24" fill="#fff"/>
             '''
         elif i == 3:
-            art = '''
+            art = f'''
             <rect x="160" y="480" width="760" height="840" rx="70" fill="#efe7d1"/>
             <rect x="205" y="525" width="670" height="120" rx="25" fill="{accent}" opacity=".85"/>
             <g fill="#2b241c" opacity=".9">
@@ -234,7 +234,7 @@ def render(package, output_path=None):
             <path d="M280 1170 h380" stroke="#b0a18b" stroke-width="22" stroke-linecap="round"/>
             '''
         elif i == 4:
-            art = '''
+            art = f'''
             <path d="M240 640 h600 l-70 590 q-230 120-460 0z" fill="#0a1722" stroke="{accent}" stroke-width="8"/>
             <path d="M260 670 h560 l-55 500 q-205 100-450 0z" fill="#101f2d"/>
             <circle cx="540" cy="875" r="130" fill="url(#accent)"/>
@@ -243,7 +243,7 @@ def render(package, output_path=None):
             <path d="M540 420 v130" stroke="#fff" stroke-opacity=".2" stroke-width="16"/>
             '''
         elif i == 5:
-            art = '''
+            art = f'''
             <rect x="150" y="470" width="780" height="820" rx="70" fill="#0c1019"/>
             <rect x="205" y="525" width="670" height="710" rx="48" fill="#121a28"/>
             <circle cx="350" cy="720" r="90" fill="{accent}" opacity=".9"/>
@@ -256,14 +256,14 @@ def render(package, output_path=None):
             <path d="M300 1160 l70 -80 70 55 90 -120 100 80 90 -140" fill="none" stroke="#fff" stroke-width="20" opacity=".8"/>
             '''
         elif i == 6:
-            art = '''
+            art = f'''
             <rect x="130" y="620" width="820" height="600" rx="80" fill="#0b111b" stroke="#fff" stroke-opacity=".12" stroke-width="4"/>
             <path d="M210 1100 L330 1010 L450 1060 L580 820 L700 900 L860 700" fill="none" stroke="url(#accent)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
             <g fill="#fff"><circle cx="210" cy="1100" r="22"/><circle cx="330" cy="1010" r="22"/><circle cx="450" cy="1060" r="22"/><circle cx="580" cy="820" r="22"/><circle cx="700" cy="900" r="22"/><circle cx="860" cy="700" r="22"/></g>
             <rect x="210" y="1280" width="650" height="30" rx="15" fill="#fff" opacity=".12"/>
             '''
         elif i == 7:
-            art = '''
+            art = f'''
             <ellipse cx="540" cy="1330" rx="310" ry="85" fill="#000" opacity=".35"/>
             <path d="M300 670 h480 l100 500 -110 90 H310 l-110-90z" fill="#e8f0f7" opacity=".95"/>
             <path d="M300 670 h480 l70 350 H230z" fill="#c7d6e4"/>
@@ -273,7 +273,7 @@ def render(package, output_path=None):
             <path d="M300 1210 h480" stroke="#fff" stroke-width="26" opacity=".25"/>
             '''
         elif i == 8:
-            art = '''
+            art = f'''
             <rect x="155" y="520" width="770" height="780" rx="75" fill="#0b0f1c"/>
             <rect x="215" y="580" width="650" height="120" rx="30" fill="{accent}" opacity=".18"/>
             <g fill="#fff" opacity=".13"><rect x="250" y="770" width="560" height="46" rx="23"/><rect x="250" y="870" width="480" height="46" rx="23"/><rect x="250" y="970" width="530" height="46" rx="23"/></g>
@@ -281,7 +281,7 @@ def render(package, output_path=None):
             <path d="M420 1130 h280" stroke="#fff" stroke-width="26" stroke-linecap="round" opacity=".7"/>
             '''
         elif i == 9:
-            art = '''
+            art = f'''
             <rect x="120" y="560" width="390" height="650" rx="45" fill="#141a28" stroke="#ef4444" stroke-opacity=".6" stroke-width="8"/>
             <rect x="570" y="560" width="390" height="650" rx="45" fill="#14261f" stroke="#4ade80" stroke-opacity=".7" stroke-width="8"/>
             <g fill="#fff" opacity=".12"><rect x="180" y="660" width="270" height="38" rx="19"/><rect x="180" y="740" width="200" height="38" rx="19"/><rect x="630" y="660" width="270" height="38" rx="19"/><rect x="630" y="740" width="220" height="38" rx="19"/></g>
@@ -289,14 +289,14 @@ def render(package, output_path=None):
             <path d="M670 1050 l70 70 160-180" fill="none" stroke="#4ade80" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
             '''
         elif i == 10:
-            art = '''
+            art = f'''
             <path d="M240 1160 L540 620 L840 1160 Z" fill="#0d1321" stroke="{accent}" stroke-width="7"/>
             <path d="M300 1100 L420 900 L510 980 L620 780 L780 1080" fill="none" stroke="url(#accent)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="420" cy="900" r="22" fill="#fff"/><circle cx="620" cy="780" r="22" fill="#fff"/>
             <rect x="370" y="1240" width="340" height="34" rx="17" fill="#fff" opacity=".15"/>
             '''
         else:
-            art = '''
+            art = f'''
             <ellipse cx="540" cy="1270" rx="330" ry="90" fill="#000" opacity=".35"/>
             <path d="M270 670 Q540 540 810 670 L760 1190 Q540 1300 320 1190Z" fill="url(#accent)" opacity=".9"/>
             <path d="M340 720 Q540 620 740 720" fill="none" stroke="#fff" stroke-width="20" opacity=".45"/>
@@ -450,6 +450,15 @@ def render(package, output_path=None):
         if not visual.get("ok"):
             return {"ok":False,"status":"visual_validation_failed","engine":status,"path":str(out),"probe":info,"visual_check":visual}
 
+        editor_handoff = {
+            "primary": {"name":"DaVinci Resolve 21","role":"final edit, color, audio, captions and master export","free":True},
+            "secondary": {"name":"AviUtl ExEdit2","role":"optional 2D motion and detailed effects","free":True},
+            "fallback": {"name":"Shotcut","role":"lightweight fallback edit and conversion","free":True},
+            "master": {"container":"MP4","video":"H.264","audio":"AAC","resolution":"1080x1920","fps":30},
+            "workflow":"Secret Base -> DaVinci Resolve -> human approval -> publish preparation",
+            "cost_policy":"Do not require paid SaaS or metered external video services."
+        }
+
         return {
             "ok":True,"status":"rendered","engine":status,"path":str(out),
             "filename":out.name,"duration_seconds":round(duration,2),
@@ -472,6 +481,7 @@ def render(package, output_path=None):
             ],
             "assets":"original vector illustrations generated locally; no external media",
             "quality":"reference-driven 9:16 render with original visual scenes, motion, captions, neural narration, synthetic BGM/SFX and technical validation",
+            "editor_handoff":editor_handoff,
             "visual_check":visual
         }
     finally:
