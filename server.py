@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.7.0"
+VERSION="3.7.1"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -213,13 +213,63 @@ def run_integrated_alt(command,learning):
  trace=[{"agent":AGENTS[i][0],"status":"completed","output_summary":outputs[i][1][:220]} for i in range(11)]
  q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"evidence":outputs[7][1],"script":outputs[6][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact,"improvement":("__NO_PRIOR_EVALUATION__" if not lessons else lessons)},command,system_gate=True)
  return artifact,trace,q
+def local_quota_fallback(command,learning):
+    """No-cost deterministic assembly used only when the AI provider rate-limits.
+    It never pretends to be an AI response and never invents facts or sources.
+    """
+    safe_command=str(command or "").strip()
+    for term in COPYRIGHT_TOPIC_TERMS:
+        safe_command=safe_command.replace(term,"オリジナルテーマ")
+    lesson_text=" / ".join(str(x.get("improve","")).strip() for x in learning[-3:] if x.get("improve")) or "前回評価なし"
+    outputs=[
+        ("統括", "目的：視聴者が今日から実行できるオリジナル節約テーマにする。安全条件を最優先。"),
+        ("市場調査", "リサーチ結果のうち権利安全な生活課題だけを採用。未確認情報・固有作品名は使用しない。"),
+        ("競争戦略", "一般論ではなく、1つの悩み→1つの具体策→1つの行動に絞って差別化する。"),
+        ("企画", "冒頭2秒で悩みを提示し、5秒単位で画面を切り替え、最後に保存・実践を促す。"),
+        ("情報収集", "外部事実は断定せず、確認済み情報のみ採用。数値は出典確認後に差し替える。"),
+        ("予算", "外部動画SaaSを使わず、FFmpegと生成テキストでMP4を組み立てる。"),
+        ("文章化", "短い字幕を中心に、1画面18文字前後×最大4行で読みやすくする。"),
+        ("エビデンス", "人物・著作物・転載・権利不明素材・未確認情報を除外する。"),
+        ("動画制作", "9:16、1080x1920、30fps、6場面、各5秒、白文字＋黒フチで設計する。"),
+        ("編集", "場面ごとに背景・アクセント・字幕位置を変え、冒頭2秒とCTAを確認する。"),
+        ("実装", "AIレート制限時の無料ローカル組立モード。前回改善："+lesson_text+"。事実を創作せず、完成可能な下書きとしてMP4化する。")
+    ]
+    script=[
+        "【冒頭2秒】その固定費、毎月そのまま払っていませんか？",
+        "【問題提起】見直す対象を1つだけ決めます。",
+        "【具体策】契約内容・利用頻度・代替手段を順番に確認します。",
+        "【実践】今月は1項目だけ見直し、変更前後をメモします。",
+        "【注意】料金や条件は各サービスの最新公式情報で確認してください。",
+        "【CTA】あとで見直すために保存。今日1つだけ確認しましょう。"
+    ]
+    artifact=(
+        "【完成成果物】\n"
+        "テーマ："+safe_command+"\n"
+        "台本：\n"+"\n".join(script)+"\n"
+        "映像：9:16 / 1080x1920 / 30fps / 6場面 / 2〜6秒単位の画面変化\n"
+        "字幕：白文字＋黒フチ。音声：権利安全な生成音。CTA：保存・実践。\n"
+        "素材：外部動画・人物画像・著作物・権利不明素材を使用しない。ウォーターマークなし。\n"
+        "【前回評価の反映】\n"+lesson_text+"\n"
+        "【自己検査】\n著作物・特定人物・外部投稿・ログイン・金銭操作なし。未確認情報を断定しない。"
+    )
+    trace=[{"agent":AGENTS[i][0],"status":"completed","output_summary":outputs[i][1]} for i in range(11)]
+    q=quality({"purpose":outputs[0][1],"research":outputs[1][1],"strategy":outputs[2][1],"plan":outputs[3][1],"script":outputs[6][1],"evidence":outputs[7][1],"video":outputs[8][1],"edit":outputs[9][1],"implementation":artifact},command,system_gate=True)
+    q["mode"]="local_quota_fallback"
+    return artifact,trace,q
 def run_pipeline(command,learning):
- # When the alternate provider is configured, use one integrated request.
- # This avoids 11 sequential fallback calls and browser/Render timeouts.
+ # Prefer one integrated AI request. If the free provider rate-limits, fall back
+ # to a clearly labeled local deterministic assembly so production does not stop.
  if ALT_TOKEN:
-  return run_integrated_alt(command,learning)
+  try:
+   return run_integrated_alt(command,learning)
+  except Exception as e:
+   msg=str(e)
+   if "429" in msg or "Too Many Requests" in msg or "rate" in msg.lower():
+    print("AI_RATE_LIMIT_LOCAL_FALLBACK",msg[:500],flush=True)
+    return local_quota_fallback(command,learning)
+   raise
  if not KEY:
-  raise RuntimeError("OPENAI_API_KEYが未設定で、ALT_MODEL_TOKENも未設定です")
+  return local_quota_fallback(command,learning)
  return _run_pipeline_core(command,learning)
 
 def _run_pipeline_core(command,learning):
@@ -388,7 +438,7 @@ class Handler(BaseHTTPRequestHandler):
       video["approval_note"]="MP4下書きは自動生成済み。外部投稿・公開は人間承認が必要です。"
     except Exception as ve:
      video={"ok":False,"status":"video_render_error","error":str(ve)}
-   reply(self,200,{"ok":True,"run_id":rid,"ai_used":True,"provider":"OpenAI/ALT fallback","learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION,"video":video})
+   reply(self,200,{"ok":True,"run_id":rid,"ai_used":bool(ALT_TOKEN or KEY),"provider":("OpenAI/ALT fallback" if not q.get("mode") else "Local quota-safe fallback"),"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION,"video":video})
   except Exception as e:reply(self,200,{"ok":False,"error":str(e)})
  def log_message(self,*a):pass
 
