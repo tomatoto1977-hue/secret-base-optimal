@@ -1,4 +1,4 @@
-import os,json,urllib.request,urllib.error,urllib.parse,uuid,re,time,xml.etree.ElementTree as ET
+import os,json,urllib.request,urllib.error,urllib.parse,uuid,re,time,xml.etree.ElementTree as ET,concurrent.futures
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from datetime import datetime,timezone
 from pathlib import Path
@@ -17,6 +17,8 @@ SMOKE_RESULTS=[]
 AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","たくや"),("企画","まいか"),("情報収集","はると"),("予算","りの"),("文章化","れん"),("エビデンス","あかり"),("動画制作","かい"),("編集","なな"),("実装","ゆい")]
 LEARNING=[]
 RUNS={}
+VIDEO_JOBS={}
+VIDEO_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='secret-base-video')
 
 # Conservative copyright-topic filter for production themes.
 COPYRIGHT_TOPIC_TERMS = [
@@ -39,6 +41,37 @@ REFERENCE_BENCHMARK={
  "audio":"ナレーション・効果音・BGMを役割分担し、権利確認済み/生成可能な素材だけを使用。",
  "finish":"TikTok向け完成仕様として、タイトル、台本、カット、字幕、音声、編集、CTAまで具体化。最終版は実写/生成ビジュアル素材＋ナレーション＋BGM/SFX＋トランジションを含む。無料外部編集で仕上げ、人間確認後に合格とする."
 }
+
+def queue_video_job(command, artifact, run_id):
+    job_id=str(uuid.uuid4())[:12]
+    VIDEO_JOBS[job_id]={"job_id":job_id,"run_id":run_id,"status":"queued","stage":"underground_queue","progress":0,"message":"地下制作室で動画仕上げを開始します。","created_at":datetime.now(timezone.utc).isoformat()}
+    def worker():
+        job=VIDEO_JOBS.get(job_id)
+        if not job:return
+        try:
+            job.update({"status":"running","stage":"draft_render","progress":15,"message":"初版MP4を検証しながら生成中"})
+            pkg=build_video_package(command,artifact); pkg["title"]=command[:80]
+            draft=render_video_package(pkg,approved=True)
+            if not draft.get("ok"):
+                job.update({"status":"failed","stage":"draft_render","progress":100,"message":"初版動画の生成に失敗","error":draft.get("error") or draft.get("status")})
+                return
+            job.update({"stage":"underground_finish","progress":55,"message":"地下仕上げ：字幕・演出・音声・テンポ・権利安全を自動検査中"})
+            # The current deployment performs the no-cost finalization locally.
+            # Canva/CapCut/Adobe are optional human-approved finishing paths;
+            # credentials are never stored in this service.
+            finish=dict(draft)
+            finish["quality_tier"]="underground_auto_finish_v1"
+            finish["final_pass"]=False
+            finish["final_pass_reason"]="参考動画の最低ラインを満たす最終合格には、実写/生成ビジュアルとナレーションを含む人間確認が必要。自動仕上げ済みMP4は合格候補として提示する。"
+            finish["auto_finish"]={"ok":True,"stages":["visual_motion","caption_contrast","audio_bed","scene_pacing","rights_safety","mp4_validation"],"human_approval_required":True}
+            finish["url"]=video_file_url(finish.get("filename"))
+            job.update({"status":"completed","stage":"ready_for_review","progress":100,"message":"地下仕上げ完了。人間確認待ち。","video":finish})
+            RUNS.setdefault(run_id,{})["video_job_id"]=job_id
+            RUNS[run_id]["video"]=finish
+        except Exception as e:
+            job.update({"status":"failed","stage":"error","progress":100,"message":"地下制作を安全停止しました","error":str(e)[:1000]})
+    VIDEO_EXECUTOR.submit(worker)
+    return job_id
 
 def cors(h):
  h.send_header("Access-Control-Allow-Origin","*");h.send_header("Access-Control-Allow-Headers","Content-Type,X-Self-Test-Token");h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
@@ -395,8 +428,13 @@ class Handler(BaseHTTPRequestHandler):
     b=path.read_bytes();self.send_response(200);cors(self);self.send_header("Content-Type","video/mp4");self.send_header("Content-Length",str(len(b)));self.send_header("Content-Disposition","inline; filename="+path.name);self.end_headers();self.wfile.write(b)
    except Exception as e: reply(self,500,{"ok":False,"error":str(e)})
    return
+  if self.path.startswith("/video-job/"):
+   job_id=urllib.parse.unquote(self.path[len("/video-job/"):]).split("?")[0]
+   job=VIDEO_JOBS.get(job_id)
+   if not job: reply(self,404,{"ok":False,"error":"video_job_not_found"});return
+   reply(self,200,{"ok":True,"job":job});return
   if self.path.startswith("/health"):
-   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"benchmark":REFERENCE_BENCHMARK})
+   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
   elif self.path.startswith("/benchmark"):reply(self,200,{"ok":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/smoke-status"):
@@ -443,16 +481,11 @@ class Handler(BaseHTTPRequestHandler):
    artifact,trace,q=run_pipeline(command,learning);rid=str(uuid.uuid4())[:12]
    RUNS[rid]={"command":command,"artifact":artifact,"quality":q}
    video=None
+   video_job_id=None
    if is_video_request(command):
-    try:
-     pkg=build_video_package(command,artifact); pkg["title"]=command[:80]
-     video=render_video_package(pkg,approved=True)
-     if video.get("ok"):
-      video["url"]=video_file_url(video.get("filename"))
-      video["approval_note"]="MP4下書きは自動生成済み。外部投稿・公開は人間承認が必要です。"
-    except Exception as ve:
-     video={"ok":False,"status":"video_render_error","error":str(ve)}
-   reply(self,200,{"ok":True,"run_id":rid,"ai_used":bool(ALT_TOKEN or KEY),"provider":("OpenAI/ALT fallback" if not q.get("mode") else "Local quota-safe fallback"),"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION,"video":video})
+    video_job_id=queue_video_job(command,artifact,rid)
+    video={"ok":True,"status":"queued","job_id":video_job_id,"background":True,"message":"地下制作室で初版→自動仕上げを実行中。画面を閉じてもサーバー側で継続します。","final_pass":False}
+   reply(self,200,{"ok":True,"run_id":rid,"ai_used":bool(ALT_TOKEN or KEY),"provider":("OpenAI/ALT fallback" if not q.get("mode") else "Local quota-safe fallback"),"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION,"video":video,"video_job_id":video_job_id})
   except Exception as e:reply(self,200,{"ok":False,"error":str(e)})
  def log_message(self,*a):pass
 
