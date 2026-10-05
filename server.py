@@ -19,6 +19,8 @@ LEARNING=[]
 RUNS={}
 VIDEO_JOBS={}
 VIDEO_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='secret-base-video')
+RUN_JOBS={}
+RUN_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='secret-base-run')
 
 # Conservative copyright-topic filter for production themes.
 COPYRIGHT_TOPIC_TERMS = [
@@ -41,6 +43,30 @@ REFERENCE_BENCHMARK={
  "audio":"ナレーション・効果音・BGMを役割分担し、権利確認済み/生成可能な素材だけを使用。",
  "finish":"TikTok向け完成仕様として、タイトル、台本、カット、字幕、音声、編集、CTAまで具体化。最終版は実写/生成ビジュアル素材＋ナレーション＋BGM/SFX＋トランジションを含む。無料外部編集で仕上げ、人間確認後に合格とする."
 }
+
+def queue_run_job(command, learning):
+    job_id=str(uuid.uuid4())[:12]
+    RUN_JOBS[job_id]={"job_id":job_id,"status":"queued","stage":"queued","progress":0,"message":"地下作業室に投入しました。画面を閉じてもサーバー側で継続します。","created_at":datetime.now(timezone.utc).isoformat()}
+    def worker():
+        job=RUN_JOBS.get(job_id)
+        if not job:return
+        try:
+            job.update({"status":"running","stage":"pipeline","progress":10,"message":"11工程の実処理をサーバー側で実行中"})
+            artifact,trace,q=run_pipeline(command,learning)
+            rid=str(uuid.uuid4())[:12]
+            RUNS[rid]={"command":command,"artifact":artifact,"quality":q}
+            video=None
+            video_job_id=None
+            if is_video_request(command):
+                job.update({"stage":"video_queue","progress":72,"message":"動画を地下制作室へ引き渡しています"})
+                video_job_id=queue_video_job(command,artifact,rid)
+                video={"ok":True,"status":"queued","job_id":video_job_id,"background":True,"message":"地下制作室で初版→自動仕上げを実行中。画面を閉じてもサーバー側で継続します。","final_pass":False}
+            result={"ok":True,"run_id":rid,"ai_used":bool(ALT_TOKEN or KEY),"provider":("OpenAI/ALT fallback" if not q.get("mode") else "Local quota-safe fallback"),"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION,"video":video,"video_job_id":video_job_id}
+            job.update({"status":"completed","stage":"ready","progress":100,"message":"実処理完了。成果物を確認できます。","run_id":rid,"result":result})
+        except Exception as e:
+            job.update({"status":"failed","stage":"error","progress":100,"message":"実処理を安全停止しました","error":str(e)[:1000]})
+    RUN_EXECUTOR.submit(worker)
+    return job_id
 
 def queue_video_job(command, artifact, run_id):
     job_id=str(uuid.uuid4())[:12]
@@ -428,13 +454,18 @@ class Handler(BaseHTTPRequestHandler):
     b=path.read_bytes();self.send_response(200);cors(self);self.send_header("Content-Type","video/mp4");self.send_header("Content-Length",str(len(b)));self.send_header("Content-Disposition","inline; filename="+path.name);self.end_headers();self.wfile.write(b)
    except Exception as e: reply(self,500,{"ok":False,"error":str(e)})
    return
+  if self.path.startswith("/run-job/"):
+   job_id=urllib.parse.unquote(self.path[len("/run-job/"):]).split("?")[0]
+   job=RUN_JOBS.get(job_id)
+   if not job: reply(self,404,{"ok":False,"error":"run_job_not_found"});return
+   reply(self,200,{"ok":True,"job":job});return
   if self.path.startswith("/video-job/"):
    job_id=urllib.parse.unquote(self.path[len("/video-job/"):]).split("?")[0]
    job=VIDEO_JOBS.get(job_id)
    if not job: reply(self,404,{"ok":False,"error":"video_job_not_found"});return
    reply(self,200,{"ok":True,"job":job});return
   if self.path.startswith("/health"):
-   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
+   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"run_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
   elif self.path.startswith("/benchmark"):reply(self,200,{"ok":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/smoke-status"):
@@ -474,6 +505,12 @@ class Handler(BaseHTTPRequestHandler):
     if not d.get("run_id"):raise ValueError("対象runがありません")
     item={"created_at":datetime.now(timezone.utc).isoformat(),"run_id":d["run_id"],"theme":d.get("theme",""),"overall":int(d.get("overall",0)),"visual":int(d.get("visual",0)),"failure":d.get("failure",""),"improve":d.get("improve",""),"worked":d.get("worked","")}
     LEARNING.append(item);LEARNING[:]=LEARNING[-50:];reply(self,200,{"ok":True,"learning_registered":True,"next_generation_input":item});return
+   if self.path=="/run-job":
+    command=str(d.get("command","")).strip()
+    if not command:raise ValueError("command required")
+    learning=d.get("learning",[]) if isinstance(d.get("learning",[]),list) else []
+    job_id=queue_run_job(command,learning)
+    reply(self,200,{"ok":True,"status":"queued","job_id":job_id,"background":True,"message":"地下作業室に投入済み。画面を閉じてもサーバー側で継続します。"});return
    if self.path!="/run":reply(self,404,{"ok":False});return
    command=str(d.get("command","")).strip()
    if not command:raise ValueError("command required")
