@@ -509,7 +509,13 @@ class Handler(BaseHTTPRequestHandler):
     command=str(d.get("command","")).strip()
     if not command:raise ValueError("command required")
     learning=d.get("learning",[]) if isinstance(d.get("learning",[]),list) else []
-    job_id=queue_run_job(command,learning)
+    print("RUN_JOB_REQUEST",json.dumps({"command":command[:120],"learning_count":len(learning)},ensure_ascii=False),flush=True)
+    try:
+     job_id=queue_run_job(command,learning)
+    except Exception as e:
+     print("RUN_JOB_ENQUEUE_ERROR",json.dumps({"error":str(e)},ensure_ascii=False),flush=True)
+     raise
+    print("RUN_JOB_QUEUED",json.dumps({"job_id":job_id},ensure_ascii=False),flush=True)
     reply(self,200,{"ok":True,"status":"queued","job_id":job_id,"background":True,"message":"地下作業室に投入済み。画面を閉じてもサーバー側で継続します。"});return
    if self.path!="/run":reply(self,404,{"ok":False});return
    command=str(d.get("command","")).strip()
@@ -523,7 +529,9 @@ class Handler(BaseHTTPRequestHandler):
     video_job_id=queue_video_job(command,artifact,rid)
     video={"ok":True,"status":"queued","job_id":video_job_id,"background":True,"message":"地下制作室で初版→自動仕上げを実行中。画面を閉じてもサーバー側で継続します。","final_pass":False}
    reply(self,200,{"ok":True,"run_id":rid,"ai_used":bool(ALT_TOKEN or KEY),"provider":("OpenAI/ALT fallback" if not q.get("mode") else "Local quota-safe fallback"),"learning_applied":bool(learning),"artifact":artifact,"quality":q,"trace":trace,"handoffs_valid":len(trace)==11 and all(x["status"]=="completed" for x in trace),"static_template_detected":False,"learning_count":len(learning),"benchmark_version":VERSION,"video":video,"video_job_id":video_job_id})
-  except Exception as e:reply(self,200,{"ok":False,"error":str(e)})
+  except Exception as e:
+   print("API_POST_ERROR",json.dumps({"path":self.path,"error":str(e)},ensure_ascii=False),flush=True)
+   reply(self,200,{"ok":False,"error":str(e)})
  def log_message(self,*a):pass
 
 if RUN_SMOKE_ON_START and ALT_TOKEN:
