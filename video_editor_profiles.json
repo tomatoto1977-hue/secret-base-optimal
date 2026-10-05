@@ -1,0 +1,28 @@
+{
+  "policy": "free-first",
+  "primary": {
+    "name": "DaVinci Resolve 21",
+    "role": ["final_edit", "color", "audio", "motion_graphics", "captions", "master_export"],
+    "required": true,
+    "paid": false
+  },
+  "secondary": {
+    "name": "AviUtl ExEdit2",
+    "role": ["2d_motion", "special_effects"],
+    "required": false,
+    "paid": false
+  },
+  "fallback": {
+    "name": "Shotcut",
+    "role": ["light_edit", "conversion", "recovery"],
+    "required": false,
+    "paid": false
+  },
+  "master": {
+    "resolution": "1080x1920",
+    "fps": 30,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "container": "mp4"
+  }
+}
