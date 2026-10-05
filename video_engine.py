@@ -358,8 +358,8 @@ def render(package, output_path=None):
             x_expr = "iw/2-(iw/zoom/2)+sin(on*0.025)*18"
             y_expr = "ih/2-(ih/zoom/2)+cos(on*0.021)*24"
             vf = (
-                f"scale=720:1280,"
-                f"zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={int(scene_duration*30)}:s=720x1280:fps=30,"
+                f"scale=540:960,"
+                f"zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={int(scene_duration*20)}:s=540x960:fps=20,"
                 f"eq=contrast=1.04:saturation=1.08,"
                 f"fade=t=in:st=0:d=0.32,fade=t=out:st={max(scene_duration-0.36,0.5):.2f}:d=0.36,"
                 f"drawbox=x=0:y=0:w=1080:h=1920:color=black@0.08:t=fill,"
@@ -423,10 +423,11 @@ def render(package, output_path=None):
                 "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),
                 "-i",str(narration),"-i",str(audio),"-i",str(sfx),
                 "-filter_complex",
+                "[0:v]scale=1080:1920,fps=30[v];"
                 "[1:a]volume=1.0[voice];[2:a]volume=0.16[music];[3:a]volume=0.55[fx];"
-                "[voice][music][fx]amix=inputs=3:duration=longest:normalize=0,scale=1080:1920,"
+                "[voice][music][fx]amix=inputs=3:duration=longest:normalize=0,"
                 "loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
-                "-map","0:v:0","-map","[aout]",
+                "-map","[v]","-map","[aout]",
                 "-c:v","libx264","-preset","ultrafast","-threads","2","-pix_fmt","yuv420p",
                 "-r","30","-c:a","aac","-b:a","128k","-threads","1","-shortest",
                 "-movflags","+faststart",str(out)
@@ -436,9 +437,11 @@ def render(package, output_path=None):
                 "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),
                 "-i",str(audio),"-i",str(sfx),
                 "-filter_complex",
+                "[0:v]scale=1080:1920,fps=30[v];"
                 "[1:a]volume=0.16[music];[2:a]volume=0.55[fx];"
-                "[music][fx]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-15:TP=-1.5:LRA=9,scale=1080:1920[aout]",
-                "-map","0:v:0","-map","[aout]",
+                "[music][fx]amix=inputs=2:duration=longest:normalize=0,"
+                "loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
+                "-map","[v]","-map","[aout]",
                 "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p",
                 "-r","30","-c:a","aac","-b:a","128k","-threads","1","-shortest",
                 "-movflags","+faststart",str(out)
