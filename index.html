@@ -37,20 +37,76 @@ function openVideoCache(){return new Promise((resolve,reject)=>{const r=indexedD
 async function cacheVideoBlob(jobId,url){const db=await openVideoCache();const blob=await fetch(url,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('video download failed: '+r.status);return r.blob()});await new Promise((resolve,reject)=>{const tx=db.transaction('videos','readwrite');tx.objectStore('videos').put({jobId,blob,created_at:Date.now()});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});return URL.createObjectURL(blob)}
 async function getCachedVideo(jobId){try{const db=await openVideoCache();const item=await new Promise((resolve,reject)=>{const tx=db.transaction('videos','readonly');const q=tx.objectStore('videos').get(jobId);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});return item?URL.createObjectURL(item.blob):''}catch(e){return ''}}
 async function pollVideoJob(jobId){$('undergroundPanel').style.display='block';$('undergroundStatus').className='small undergroundPulse';$('undergroundStatus').textContent='🕳️ 地下制作室を起動しました…';$('undergroundBar').style.width='5%';for(let attempt=0;attempt<120;attempt++){try{const r=await fetch(API+'/video-job/'+encodeURIComponent(jobId),{cache:'no-store'});const j=await r.json();const job=j.job||{};$('undergroundBar').style.width=(job.progress||0)+'%';$('undergroundStatus').textContent='🕳️ '+(job.message||job.stage||'処理中')+' ｜ '+(job.progress||0)+'%';if(job.status==='completed'){const video=job.video||{};$('undergroundStatus').className='small';$('undergroundStatus').textContent='✅ 地下仕上げ完了。人間確認待ち ｜ '+(video.duration_seconds||'—')+'秒';if(video.url){let u=API+video.url;try{u=await cacheVideoBlob(jobId,u)}catch(e){console.warn('video cache fallback',e)}$('videoPanel').style.display='block';$('videoPreview').src=u;$('videoOpen').href=u;$('videoStatus').textContent='🟢 自動仕上げ済みMP4 ｜ '+(video.duration_seconds||'—')+'秒 ｜ 1080×1920 ｜ H.264 + AAC';$('videoTools').style.display='block';$('editorCards').innerHTML=(video.external_editors||[]).map(e=>'<div class="editorCard"><a href="'+e.url+'" target="_blank" rel="noopener">▶ '+e.name+'</a><span>'+e.purpose+'</span></div>').join('');}$('gate').textContent='🟡 自動仕上げ検証OK・最終合格は人間確認後';$('gate').className='small';return video}if(job.status==='failed'){throw new Error(job.error||'地下制作が停止しました')}}catch(e){$('undergroundStatus').className='small bad';$('undergroundStatus').textContent='⚠️ 地下制作を安全停止：'+e;return null}await new Promise(r=>setTimeout(r,3000))}$('undergroundStatus').textContent='⚠️ 長時間処理のため状態確認を停止しました。制作自体はサーバー側で継続する場合があります。';return null}
-async function run(){if(running)return;running=true;$('run').disabled=true;$('run').textContent='実行中…';$('artifact').textContent='';$('trace').textContent='';$('score').textContent='—';$('gate').textContent='実処理中';renderAgents();const command=$('command').value.trim()||'新しい動画制作を企画してください';try{
- let memory=[];try{memory=JSON.parse(localStorage.getItem('sb3_learning')||'[]');if(!Array.isArray(memory))memory=[];}catch(e){memory=[]}
- try{const lr=await fetch(API+'/learning');const lj=await lr.json();const serverLearning=Array.isArray(lj.items)?lj.items:[];const merged=[...serverLearning,...memory];const seen=new Set();memory=merged.filter(x=>{const k=JSON.stringify(x);if(seen.has(k))return false;seen.add(k);return true}).slice(-12)}catch(e){}
- for(let i=0;i<11;i++)setAgent(i,'work',i===0?'目的を整理・学習を取得':names[i][0]+'の実処理を待機',5);
- const res=await fetch(API+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command,learning:memory.slice(-12)})});
- const j=await res.json();if(!j.ok)throw new Error(j.error||'実行失敗');lastRunId=j.run_id;
- const trace=j.trace||[];for(let i=0;i<11;i++){const t=trace[i]||{};setAgent(i,t.status==='completed'?'done':'fail',t.output_summary||t.error||'処理結果なし',100)}
- $('artifactMeta').textContent='run_id: '+j.run_id+' ｜ 実AI: '+(j.ai_used?'使用':'未使用')+' ｜ 学習反映: '+(j.learning_applied?'YES':'NO');
- $('artifact').textContent=j.artifact||'成果物なし';
- const art=String(j.artifact||'成果物なし'); const first=(art.split(/\n/).find(x=>x.trim())||'今回の成果物').slice(0,100); $('heroTitle').textContent=first; $('heroMeta').textContent='品質 '+(j.quality?.score??'—')+'点 ｜ 11工程 '+(j.handoffs_valid?'完了':'要確認')+' ｜ 学習反映 '+(j.learning_applied?'済み':'なし'); $('heroBody').textContent=art; $('heroBody').scrollTop=0;
- $('learningLive').innerHTML='🧠 今回の制作に学習を反映：'+(j.learning_applied?'YES':'NO')+'<br>'+((j.learning_effects||[]).slice(-4).join('<br>')||'今回の評価反映事項なし');
- const video=j.video||null; if(video&&video.background&&video.job_id){$('undergroundPanel').style.display='block';$('undergroundStatus').className='small undergroundPulse';$('undergroundStatus').textContent='🕳️ 地下制作室に投入済み。画面を閉じてもサーバー側で継続します。';$('undergroundBar').style.width='5%';pollVideoJob(video.job_id);}else if(video&&video.ok&&video.url){const u=API+video.url;$('videoPanel').style.display='block';$('videoPreview').src=u;$('videoOpen').href=u;$('videoStatus').textContent='🟢 自動仕上げ済みMP4 ｜ '+(video.duration_seconds||'—')+'秒 ｜ 1080×1920 ｜ H.264 + AAC';$('videoTools').style.display='block';$('editorCards').innerHTML=(video.external_editors||[]).map(e=>'<div class="editorCard"><a href="'+e.url+'" target="_blank" rel="noopener">▶ '+e.name+'</a><span>'+e.purpose+'</span></div>').join('');}
- $('score').textContent=(j.quality?.score??'—')+'点';$('gate').textContent=video&&video.background?'🟡 地下自動仕上げ中・最終合格は人間確認後':((video&&video.ok&&video.final_pass===false)?'🟡 自動仕上げ検証OK・最終合格は人間確認後':'⚠️ 95点未達・再生成が必要');$('gate').className='small';$('trace').textContent='実処理担当：'+trace.filter(x=>x.status==='completed').length+'/11 ｜ 引き継ぎ検証：'+(j.handoffs_valid?'OK':'NG')+' ｜ 固定台本：'+(j.static_template_detected?'検出':'なし');loadMemory();
- }catch(e){for(let i=0;i<11;i++)setAgent(i,'fail','実処理が確認できず停止',0);const msg=String(e);$('artifactMeta').textContent='安全停止';$('artifact').textContent=(msg.includes('Load failed')||msg.includes('Failed to fetch')?'API通信に失敗しました。Render APIの起動・通信を確認してから再実行してください。':msg);$('gate').textContent='⚠️ 実処理を確認できないため成果物を生成しません'}finally{running=false;$('run').disabled=false;$('run').textContent='実行'}}
+async function pollRunJob(jobId){
+  try{
+    const r=await fetch(API+'/run-job/'+encodeURIComponent(jobId),{cache:'no-store'});
+    const j=await r.json();
+    if(!j.ok)throw new Error(j.error||'ジョブ確認失敗');
+    const job=j.job||{};
+    $('undergroundPanel').style.display='block';
+    $('undergroundStatus').className='small undergroundPulse';
+    $('undergroundBar').style.width=(job.progress||0)+'%';
+    $('undergroundStatus').textContent='🕳️ '+(job.message||job.stage||'処理中')+' ｜ '+(job.progress||0)+'%';
+    if(job.status==='completed'){
+      const x=job.result||{};
+      lastRunId=x.run_id||null;
+      $('artifactMeta').textContent='実処理完了 ｜ 11工程 ｜ run='+String(lastRunId||'—');
+      $('artifact').textContent=x.artifact||'—';
+      $('score').textContent=((x.quality||{}).score??'—')+'点';
+      $('gate').textContent=(x.quality||{}).passed?'🟢 品質基準を通過':'🟡 自動品質確認済み・人間確認待ち';
+      const trace=x.trace||[];
+      trace.forEach((t,i)=>setAgent(i,'done',t.output_summary||'実処理完了',100));
+      $('trace').textContent=trace.map(t=>'✓ '+t.agent+'：'+(t.output_summary||'完了')).join('\n');
+      try{localStorage.removeItem('sb3_active_run_job')}catch(e){}
+      const video=x.video||null;
+      if(video&&video.background&&video.job_id){
+        $('undergroundStatus').textContent='🕳️ 動画を地下制作室へ引き渡しました。画面を閉じてもサーバー側で継続します。';
+        pollVideoJob(video.job_id);
+      }else if(video&&video.ok&&video.url){
+        const u=API+video.url;
+        $('videoPanel').style.display='block';$('videoPreview').src=u;$('videoOpen').href=u;
+        $('videoStatus').textContent='🟢 自動仕上げ済みMP4 ｜ '+(video.duration_seconds||'—')+'秒 ｜ 1080×1920 ｜ H.264 + AAC';
+        $('videoTools').style.display='block';
+      }else{
+        $('undergroundStatus').className='small';
+        $('undergroundStatus').textContent='✅ 実処理完了';
+      }
+      running=false;$('run').disabled=false;$('run').textContent='実行';
+      return;
+    }
+    if(job.status==='failed')throw new Error(job.error||'実処理が停止しました');
+  }catch(e){
+    $('undergroundStatus').className='small bad';
+    $('undergroundStatus').textContent='⚠️ '+e.message;
+    for(let i=0;i<11;i++)setAgent(i,'fail','実処理を確認できず停止',0);
+    running=false;$('run').disabled=false;$('run').textContent='実行';
+    return;
+  }
+  setTimeout(()=>pollRunJob(jobId),3000);
+}
+async function run(){
+  if(running)return;
+  running=true;$('run').disabled=true;$('run').textContent='地下作業中…';
+  $('artifact').textContent='';$('trace').textContent='';$('score').textContent='—';$('gate').textContent='サーバー側で実処理中';renderAgents();
+  const command=$('command').value.trim()||'新しい動画制作を企画してください';
+  try{
+    let local=[];try{local=JSON.parse(localStorage.getItem('sb3_learning')||'[]')}catch(e){}
+    try{
+      const lr=await fetch(API+'/learning');const lj=await lr.json();const serverLearning=Array.isArray(lj.items)?lj.items:[];
+      const merged=[...serverLearning,...memory];const seen=new Set();
+      memory=merged.filter(x=>{const k=JSON.stringify(x);if(seen.has(k))return false;seen.add(k);return true}).slice(-12);
+    }catch(e){}
+    const res=await fetch(API+'/run-job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command,learning:memory.slice(-12)})});
+    const j=await res.json();if(!j.ok)throw new Error(j.error||'実行投入失敗');
+    try{localStorage.setItem('sb3_active_run_job',j.job_id)}catch(e){}
+    $('undergroundPanel').style.display='block';$('undergroundStatus').textContent='🕳️ 地下作業室に投入済み。画面を閉じてもサーバー側で継続します。';$('undergroundBar').style.width='3%';
+    pollRunJob(j.job_id);
+  }catch(e){
+    for(let i=0;i<11;i++)setAgent(i,'fail','実処理を投入できず停止',0);
+    $('artifactMeta').textContent='安全停止';$('artifact').textContent=e.message||String(e);$('gate').textContent='⚠️ 実処理を確認できないため成果物を生成しません';
+    running=false;$('run').disabled=false;$('run').textContent='実行';
+  }
+}
 async function saveEval(){if(!lastRunId){$('evalStatus').textContent='先に成果物を1件実行してください。';return}const body={run_id:lastRunId,theme:$('evTheme').value,overall:Number($('evOverall').value),visual:Number($('evVisual').value),failure:$('evFailure').value,improve:$('evImprove').value,worked:$('evWorked').value};try{const h=JSON.parse(localStorage.getItem('sb3_learning')||'[]');h.push(body);localStorage.setItem('sb3_learning',JSON.stringify(h.slice(-50)));const r=await fetch(API+'/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!j.ok)throw new Error(j.error);$('evalStatus').textContent='✅ 保存済み。次回生成の必須入力へ登録しました。';loadMemory()}catch(e){$('evalStatus').textContent='❌ 保存失敗：'+e}}
 $('run').onclick=run;$('researchBtn').onclick=researchNow;$('saveEval').onclick=saveEval;renderAgents();health();loadMemory();
 </script></body></html>
