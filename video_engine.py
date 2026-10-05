@@ -100,14 +100,33 @@ def _ensure_edge_tts():
             print("TTS_INSTALL_ERROR",str(e)[:500],flush=True)
             return False
 
-def _make_narration_text(command, chunks):
-    parts=[_clean(command)[:70]]
-    for x in chunks[:5]:
+def _make_narration_text(command, chunks, title=""):
+    # Keep spoken narration separate from screen title and production labels.
+    title_key=_normalize_text(title)
+    banned=["タイトル","見出し","CTA","完成成果物","自己検査","ナレーション","台本","シーン"]
+    parts=[]
+    seen=set()
+    for x in chunks:
         s=_clean(x)
-        if s and s not in parts:
-            parts.append(s[:70])
-    parts.append("今日できることから一つ始めましょう。保存して後で見直してください。")
-    return "。".join(p.rstrip("。") for p in parts if p)+"。"
+        for label in banned:
+            s=s.replace(label," ")
+        s=_clean(s).strip(" -•・:：")
+        key=_normalize_text(s)
+        if not s or key==title_key or key in seen:
+            continue
+        if any(key in k or k in key for k in seen if len(k)>8):
+            continue
+        seen.add(key)
+        parts.append(s[:82])
+        if len(parts)>=5:
+            break
+    if parts:
+        return "まず、ここで押さえたいポイントから見ていきましょう。"+"。".join(p.rstrip("。") for p in parts)+"。気になるところは一つだけ選んで、今日から試してみましょう。"
+    return "まず大事なポイントを一つ確認しましょう。今日できることから試して、あとで結果を見直してみてください。"
+
+def _normalize_text(text):
+    s=_clean(text).lower()
+    return re.sub(r"[「」『』【】（）()、。！？!?：:・\\s]+","",s)
 
 def _render_narration(text, output_path):
     if not _ensure_edge_tts():
@@ -396,7 +415,7 @@ def render(package, output_path=None):
             return {"ok":False,"status":"sfx_render_error","engine":status,"error":sp.stderr[-1000:]}
 
         narration = work / "narration.mp3"
-        narration_text = _make_narration_text(command,chunks)
+        narration_text = _make_narration_text(command,chunks,title)
         tts_result = _render_narration(narration_text,narration)
 
         if tts_result.get("ok"):
