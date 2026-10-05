@@ -91,7 +91,9 @@ def render(package, output_path=None):
     chunks = _scene_text(artifact, command)
     title = _clean(package.get("title") or command or "秘密基地")
     test_mode = bool(package.get("test_mode", False))
-    # Production: six 5-second scenes. Self-test: one short scene to keep service startup fast.
+
+    # Local render is a visual-motion draft. Final quality is intentionally
+    # defined as a two-stage pipeline: this draft + free external editor finish.
     scene_count = 1 if test_mode else 6
     scene_duration = 1 if test_mode else 5
     total = scene_count * scene_duration
@@ -106,37 +108,52 @@ def render(package, output_path=None):
         font = _font_file()
         if not font:
             return {"ok":False,"status":"japanese_font_unavailable","engine":status}
+
         title_file = work / "title.txt"
         _write_text(title_file, _display_lines(title, max_chars=20, max_lines=2))
 
-        # Render scenes with a low-memory FFmpeg configuration.\n        # Explicit initialization keeps the startup self-test safe across reloads.
+        # Six moving motion-graphic scenes. No third-party media is embedded.
+        colors = ["#0d1220","#17122b","#101c22","#21151b","#111d18","#181325"]
+        accents = ["#ffb36a","#8ee8d6","#ff8fa8","#a7e58b","#ffd27a","#9fb8ff"]
+        kickers = ["課題を発見","ムダを可視化","3ステップで整理","数字で比較","今日から実践","保存して後で使う"]
+
         for i in range(scene_count):
             body = chunks[i % len(chunks)]
             body_file = work / f"body_{i}.txt"
             caption_file = work / f"caption_{i}.txt"
+            kicker_file = work / f"kicker_{i}.txt"
             _write_text(body_file, _display_lines(body, max_chars=18, max_lines=4))
             _write_text(caption_file, _display_lines(f"{i+1}/{scene_count}  {body}", max_chars=22, max_lines=2))
+            _write_text(kicker_file, kickers[i % len(kickers)])
+
             seg = work / f"seg_{i}.mp4"
-            # Different hue per scene. No external image/video assets are used.
-            hue = [0.08,0.16,0.28,0.42,0.58,0.72][i]
-            color = ["#6d4c7d","#356b73","#76505f","#3f735b","#80613e","#46547d"][i]
-            accent = ["#ffb07c","#8fe3d2","#ff9db5","#a7e58b","#ffd27a","#9bb8ff"][i]
+            color = colors[i % len(colors)]
+            accent = accents[i % len(accents)]
             scene_label = f"SCENE {i+1}/{scene_count}"
+
+            # Animated cards, counters, icons, progress and subtle grain keep
+            # the draft visually active instead of showing text on a flat screen.
             vf = (
                 f"drawbox=x=0:y=0:w=1080:h=1920:color={color}:t=fill,"
-                f"drawbox=x=42:y=72:w=996:h=235:color=black@0.52:t=fill,"
-                f"drawbox=x=42:y=300:w=996:h=1240:color=black@0.32:t=fill,"
-                f"drawbox=x=42:y=1560:w=996:h=235:color=black@0.52:t=fill,"
-                f"drawbox=x=42:y=286:w=996:h=10:color={accent}:t=fill,"
-                f"drawtext=fontfile='{_esc_filter_path(font)}':text='{scene_label}':"
-                f"fontcolor={accent}:fontsize=38:borderw=2:bordercolor=black:x=75:y=105,"
-                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(title_file)}':"
-                f"fontcolor=white:fontsize=58:borderw=5:bordercolor=black:x=(w-text_w)/2:y=155,"
-                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(body_file)}':"
-                f"fontcolor=white:fontsize=50:borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2-30:"
-                f"line_spacing=12,"
-                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(caption_file)}':"
-                f"fontcolor=white:fontsize=32:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-335"
+                f"drawbox=x='-260+sin(t*0.55+{i})*340':y='{160+i*35}+cos(t*0.72)*160':w=760:h=760:color={accent}@0.22:t=fill,"
+                f"drawbox=x='{570+40*i}+cos(t*0.42+{i})*260':y='{620+i*25}+sin(t*0.66)*220':w=640:h=720:color=#24d8c5@0.18:t=fill,"
+                f"drawbox=x='{50+i*25}+sin(t*0.90+{i})*420':y='1240+cos(t*0.55)*160':w=520:h=360:color=#ff8f57@0.16:t=fill,"
+                f"drawbox=x=48:y=55:w=984:h=340:color=black@0.46:t=fill,"
+                f"drawbox=x=48:y=1515:w=984:h=300:color=black@0.52:t=fill,"
+                f"drawbox=x=48:y=372:w=984:h=8:color={accent}:t=fill,"
+                f"drawbox=x=90:y=1110:w=900:h=12:color=white@0.10:t=fill,"
+                f"drawbox=x=90:y=1110:w='900*min(1,max(0,(t-0.25)/{max(scene_duration-0.5,0.5)}))':h=12:color={accent}:t=fill,"
+                f"drawbox=x='-280+t*120':y=820:w=280:h=180:color=white@0.07:t=fill,"
+                f"drawbox=x='1080-t*110':y=1020:w=280:h=180:color=white@0.06:t=fill,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':text='¥':fontcolor=white@0.14:fontsize='150+20*sin(t*1.2)':x='450+sin(t*0.5)*45':y=610,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':text='✓':fontcolor=white@0.20:fontsize='115+10*cos(t*1.6)':x='165+sin(t*0.8)*70':y=760,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':text='↗':fontcolor=white@0.18:fontsize='115+12*sin(t*1.1)':x='770+cos(t*0.7)*70':y=900,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':text='{scene_label}':fontcolor={accent}:fontsize=34:borderw=2:bordercolor=black:x=78:y=90,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(kicker_file)}':fontcolor=#d7d5e6:fontsize=30:borderw=2:bordercolor=black:x=78:y=135,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(title_file)}':fontcolor=white:fontsize=58:borderw=5:bordercolor=black:x=(w-text_w)/2:y=205,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(body_file)}':fontcolor=white:fontsize=54:borderw=5:bordercolor=black:x=(w-text_w)/2:y='720+14*sin(t*1.15)':line_spacing=16,"
+                f"drawtext=fontfile='{_esc_filter_path(font)}':text='保存して後で見直す':fontcolor=white:fontsize=34:borderw=3:bordercolor=black:x=(w-text_w)/2:y=1635,"
+                "noise=alls=4:allf=t"
             )
             cmd=[
                 "ffmpeg","-y","-f","lavfi","-i",f"color=c={color}:s=1080x1920:r=30",
@@ -150,12 +167,15 @@ def render(package, output_path=None):
 
         concat = work / "concat.txt"
         concat.write_text("".join(f"file '{p}'\n" for p in segment_files), encoding="utf-8")
-        # Concatenate the visual scenes and add generated, royalty-free synthetic audio.
+
+        # A synthetic music bed only: no copyrighted track is used.
         audio = work / "audio.wav"
         ap=subprocess.run([
-            "ffmpeg","-y","-f","lavfi","-i",
-            f"sine=frequency=196:sample_rate=48000:duration={total}",
-            "-af","volume=0.035,afade=t=in:st=0:d=1,afade=t=out:st=27:d=3",
+            "ffmpeg","-y",
+            "-f","lavfi","-i",f"sine=frequency=196:sample_rate=48000:duration={total}",
+            "-f","lavfi","-i",f"sine=frequency=294:sample_rate=48000:duration={total}",
+            "-f","lavfi","-i",f"sine=frequency=392:sample_rate=48000:duration={total}",
+            "-filter_complex","[0:a]volume=0.020[a0];[1:a]volume=0.012[a1];[2:a]volume=0.008[a2];[a0][a1][a2]amix=inputs=3:normalize=0,afade=t=in:st=0:d=0.8,afade=t=out:st="+str(max(0,total-2)) + ":d=2",
             "-c:a","pcm_s16le",str(audio)
         ],capture_output=True,text=True,timeout=60)
         if ap.returncode!=0:
@@ -176,6 +196,7 @@ def render(package, output_path=None):
         ],capture_output=True,text=True,timeout=30)
         if probe.returncode!=0:
             return {"ok":False,"status":"probe_failed","engine":status,"error":probe.stderr[-1000:]}
+
         info=json.loads(probe.stdout)
         streams=info.get("streams",[])
         video=next((s for s in streams if s.get("codec_type")=="video"),{})
@@ -184,16 +205,27 @@ def render(package, output_path=None):
         valid=(video.get("codec_name")=="h264" and video.get("width")==1080 and video.get("height")==1920 and duration>=(0.9 if test_mode else 29) and audio_stream.get("codec_name")=="aac")
         if not valid:
             return {"ok":False,"status":"validation_failed","engine":status,"path":str(out),"probe":info}
+
         visual=_visual_frame_check(out,duration,scene_count)
         if not visual.get("ok"):
             return {"ok":False,"status":"visual_validation_failed","engine":status,"path":str(out),"probe":info,"visual_check":visual}
+
         return {
             "ok":True,"status":"rendered","engine":status,"path":str(out),
             "filename":out.name,"duration_seconds":round(duration,2),
             "format":{"width":1080,"height":1920,"fps":30,"container":"mp4","video_codec":"h264","audio_codec":"aac"},
             "scene_count":scene_count,"scene_change_seconds":5,
-            "assets":"generated-only; no external SaaS media",
-            "quality":"draft MP4 validated by ffprobe plus decoded-frame visual check; Japanese font and visible scene layout required","visual_check":visual
+            "quality_tier":"motion_graphics_draft",
+            "final_pass":False,
+            "final_pass_reason":"ユーザー提供参考動画の最低ラインには、実写/生成ビジュアル素材＋ナレーション＋BGM/SFX＋編集演出が必要。無料外部編集で最終仕上げする設計。",
+            "external_editors":[
+                {"name":"CapCut","url":"https://www.capcut.com/editor","purpose":"無料枠で素材・字幕・音声・トランジションを仕上げる"},
+                {"name":"Canva","url":"https://www.canva.com/video-editor/","purpose":"無料動画テンプレート・字幕・アニメーションで仕上げる"},
+                {"name":"Adobe Express","url":"https://www.adobe.com/jp/express/feature/video/editor","purpose":"無料テンプレート・音声・アニメーションで仕上げる"}
+            ],
+            "assets":"generated-only local motion graphics; no external SaaS media",
+            "quality":"1080x1920 draft validated by ffprobe plus decoded-frame visual check; final quality requires external editor finish",
+            "visual_check":visual
         }
     finally:
         shutil.rmtree(work, ignore_errors=True)
