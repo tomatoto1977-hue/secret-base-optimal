@@ -101,6 +101,16 @@ def _ensure_edge_tts():
             return False
 
 def _make_narration_text(command, chunks, title=""):
+    # Prefer an explicit AI-written narration block. Never narrate production specs.
+    for marker in ("【ナレーション】", "[NARRATION]", "NARRATION:"):
+        if marker in chunks:
+            explicit = chunks.split(marker,1)[1]
+            for stop in ("【", "[/NARRATION]", "【字幕】", "[CAPTIONS]"):
+                if stop in explicit:
+                    explicit = explicit.split(stop,1)[0]
+            explicit = _clean(explicit)
+            if len(explicit) >= 80:
+                return explicit[:900]
     # Keep spoken narration separate from screen title and production labels.
     title_key=_normalize_text(title)
     banned=["タイトル","見出し","CTA","完成成果物","自己検査","ナレーション","台本","シーン"]
@@ -406,11 +416,12 @@ def render(package, output_path=None):
         if ap.returncode!=0:
             return {"ok":False,"status":"audio_render_error","engine":status,"error":ap.stderr[-1000:]}
 
+        # No repetitive "pip" at every scene boundary. Use a silent track for mux compatibility.
         sp=subprocess.run([
             "ffmpeg","-y","-f","lavfi","-i",
-            f"aevalsrc=0.075*sin(2*PI*880*t)*if(lt(mod(t\\,{scene_duration})\\,0.18)\\,1\\,0):s=48000:d={total}",
+            f"anullsrc=r=48000:cl=stereo:d={total}",
             "-c:a","pcm_s16le",str(sfx)
-        ],capture_output=True,text=True,timeout=60)
+        ],capture_output=True,text=True,timeout=30)
         if sp.returncode!=0:
             return {"ok":False,"status":"sfx_render_error","engine":status,"error":sp.stderr[-1000:]}
 
@@ -424,7 +435,7 @@ def render(package, output_path=None):
                 "-i",str(narration),"-i",str(audio),"-i",str(sfx),
                 "-filter_complex",
                 "[0:v]scale=1080:1920,fps=30[v];"
-                "[1:a]volume=1.0[voice];[2:a]volume=0.16[music];[3:a]volume=0.55[fx];"
+                "[1:a]volume=1.0[voice];[2:a]volume=0.16[music];[3:a]volume=0.0[fx];"
                 "[voice][music][fx]amix=inputs=3:duration=longest:normalize=0,"
                 "loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
                 "-map","[v]","-map","[aout]",
@@ -438,7 +449,7 @@ def render(package, output_path=None):
                 "-i",str(audio),"-i",str(sfx),
                 "-filter_complex",
                 "[0:v]scale=1080:1920,fps=30[v];"
-                "[1:a]volume=0.16[music];[2:a]volume=0.55[fx];"
+                "[1:a]volume=0.16[music];[2:a]volume=0.0[fx];"
                 "[music][fx]amix=inputs=2:duration=longest:normalize=0,"
                 "loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
                 "-map","[v]","-map","[aout]",
