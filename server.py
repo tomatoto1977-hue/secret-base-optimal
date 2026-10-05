@@ -9,7 +9,7 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.6.9"
+VERSION="3.7.0"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -72,7 +72,7 @@ def choose_research_theme(query, items, learning):
     effects=learning_effects(learning); titles='\n'.join('- '+x['title']+' ['+x.get('publisher','')+']' for x in items[:10]); lessons='\n'.join(effects) or 'なし'
     if ALT_TOKEN and items:
         prompt=('秘密基地最適版のテーマ選定担当です。最新リサーチ候補から、権利安全で独自制作しやすく、視聴者の課題が明確なテーマを1つ選んでください。'
-                '特定人物・芸能人・著作物そのものをテーマにしない。未確認情報は断定しない。過去評価の改善を優先する。'
+                '特定人物・芸能人・著作物そのものをテーマにしない。ゲーム、アニメ、漫画、映画、ドラマ、キャラクター、楽曲等の固有タイトルを扱わない。企業ブランド名や商品名も原則として一般化する。未確認情報は断定しない。過去評価の改善を優先する。'
                 '\n検索意図:'+query+'\n候補:\n'+titles+'\n過去学習:\n'+lessons+'\nJSONのみ: {theme,reason,angle,learning_applied}')
         try:
             raw=ask_alt(prompt).strip()
