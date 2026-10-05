@@ -108,5 +108,5 @@ async function run(){
   }
 }
 async function saveEval(){if(!lastRunId){$('evalStatus').textContent='先に成果物を1件実行してください。';return}const body={run_id:lastRunId,theme:$('evTheme').value,overall:Number($('evOverall').value),visual:Number($('evVisual').value),failure:$('evFailure').value,improve:$('evImprove').value,worked:$('evWorked').value};try{const h=JSON.parse(localStorage.getItem('sb3_learning')||'[]');h.push(body);localStorage.setItem('sb3_learning',JSON.stringify(h.slice(-50)));const r=await fetch(API+'/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!j.ok)throw new Error(j.error);$('evalStatus').textContent='✅ 保存済み。次回生成の必須入力へ登録しました。';loadMemory()}catch(e){$('evalStatus').textContent='❌ 保存失敗：'+e}}
-$('run').onclick=run;$('researchBtn').onclick=researchNow;$('saveEval').onclick=saveEval;renderAgents();health();loadMemory();
+$('run').onclick=run;$('researchBtn').onclick=researchNow;$('saveEval').onclick=saveEval;renderAgents();health();loadMemory();try{const activeJob=localStorage.getItem('sb3_active_run_job');if(activeJob){running=true;$('run').disabled=true;$('run').textContent='地下作業中…';pollRunJob(activeJob)}}catch(e){}
 </script></body></html>
