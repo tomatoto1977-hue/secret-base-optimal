@@ -49,13 +49,31 @@ def _clean(text):
 def _scene_text(artifact, command):
     raw = _clean(artifact)
     raw = re.sub(r"https?://\\S+|\\b[\\w.-]+\\.onrender\\.com\\b", "", raw)
+    risky_terms = [
+        "ドラゴンズドグマ", "KINGDOM HEARTS", "キングダムハーツ",
+        "ドラゴンクエスト", "ポケットモンスター", "ポケモン",
+        "鬼滅の刃", "ONE PIECE", "ワンピース", "呪術廻戦",
+        "進撃の巨人", "名探偵コナン", "マリオ", "ゼルダの伝説"
+    ]
+    for term in risky_terms:
+        raw = raw.replace(term, "オリジナルテーマ")
     if not raw:
         raw = _clean(command)
-    # Keep the first few meaningful chunks. The renderer is deliberately deterministic.
-    chunks = [x.strip(" -•・【】") for x in textwrap.wrap(raw, width=48, break_long_words=False, break_on_hyphens=False) if x.strip()]
+    chunks = [x.strip(" -•・【】") for x in textwrap.wrap(raw, width=36, break_long_words=False, break_on_hyphens=False) if x.strip()]
     if not chunks:
         chunks = ["秘密基地 最適版"]
     return chunks[:12]
+
+def _display_lines(text, max_chars=18, max_lines=3):
+    """Japanese-friendly fixed-width wrapping for FFmpeg drawtext textfile."""
+    s = _clean(text)
+    lines = []
+    while s and len(lines) < max_lines:
+        lines.append(s[:max_chars])
+        s = s[max_chars:]
+    if s and lines:
+        lines[-1] = lines[-1][:-1] + "…"
+    return "\n".join(lines)
 
 def _write_text(path, text):
     path.write_text(text, encoding="utf-8")
@@ -89,15 +107,15 @@ def render(package, output_path=None):
         if not font:
             return {"ok":False,"status":"japanese_font_unavailable","engine":status}
         title_file = work / "title.txt"
-        _write_text(title_file, title[:70])
+        _write_text(title_file, _display_lines(title, max_chars=20, max_lines=2))
 
         # Render scenes with a low-memory FFmpeg configuration.\n        # Explicit initialization keeps the startup self-test safe across reloads.
         for i in range(scene_count):
             body = chunks[i % len(chunks)]
             body_file = work / f"body_{i}.txt"
             caption_file = work / f"caption_{i}.txt"
-            _write_text(body_file, body[:110])
-            _write_text(caption_file, f"{i+1}/{scene_count}  {body[:55]}")
+            _write_text(body_file, _display_lines(body, max_chars=18, max_lines=4))
+            _write_text(caption_file, _display_lines(f"{i+1}/{scene_count}  {body}", max_chars=22, max_lines=2))
             seg = work / f"seg_{i}.mp4"
             # Different hue per scene. No external image/video assets are used.
             hue = [0.08,0.16,0.28,0.42,0.58,0.72][i]
@@ -106,10 +124,10 @@ def render(package, output_path=None):
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(title_file)}':"
                 f"fontcolor=white:fontsize=62:borderw=5:bordercolor=black:x=(w-text_w)/2:y=150,"
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(body_file)}':"
-                f"fontcolor=white:fontsize=52:borderw=4:bordercolor=black:x=70:y=(h-text_h)/2-30:"
+                f"fontcolor=white:fontsize=50:borderw=4:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2-30:"
                 f"line_spacing=12,"
                 f"drawtext=fontfile='{_esc_filter_path(font)}':textfile='{_esc_filter_path(caption_file)}':"
-                f"fontcolor=white:fontsize=34:borderw=3:bordercolor=black:x=70:y=h-220"
+                f"fontcolor=white:fontsize=32:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-240"
             )
             cmd=[
                 "ffmpeg","-y","-f","lavfi","-i",f"color=c={color}:s=1080x1920:r=30",
