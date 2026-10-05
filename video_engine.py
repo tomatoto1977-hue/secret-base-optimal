@@ -100,17 +100,26 @@ def _ensure_edge_tts():
             print("TTS_INSTALL_ERROR",str(e)[:500],flush=True)
             return False
 
-def _make_narration_text(command, chunks, title=""):
-    # Prefer an explicit AI-written narration block. Never narrate production specs.
+def _extract_narration(artifact):
+    # Extract the dedicated spoken script from the full AI artifact BEFORE
+    # scene chunking. This prevents the production specification from becoming
+    # the spoken narration simply because the narration block appears later.
+    text = str(artifact or "")
     for marker in ("【ナレーション】", "[NARRATION]", "NARRATION:"):
-        if marker in chunks:
-            explicit = chunks.split(marker,1)[1]
+        if marker in text:
+            explicit = text.split(marker,1)[1]
             for stop in ("【", "[/NARRATION]", "【字幕】", "[CAPTIONS]"):
                 if stop in explicit:
                     explicit = explicit.split(stop,1)[0]
             explicit = _clean(explicit)
             if len(explicit) >= 80:
-                return explicit[:900]
+                return explicit[:1200]
+    return ""
+
+def _make_narration_text(command, chunks, title=""):
+    # Explicit narration should already have been extracted from the full artifact.
+    # Keep this fallback natural and never narrate production specs.
+
     # Keep spoken narration separate from screen title and production labels.
     title_key=_normalize_text(title)
     banned=["タイトル","見出し","CTA","完成成果物","自己検査","ナレーション","台本","シーン"]
@@ -161,6 +170,7 @@ def render(package, output_path=None):
     command = _clean(package.get("command",""))
     artifact = str(package.get("production_spec","") or package.get("artifact",""))
     chunks = _scene_text(artifact, command)
+    narration_text = _extract_narration(artifact)
     title = _clean(package.get("title") or command or "秘密基地")
     test_mode = bool(package.get("test_mode", False))
 
@@ -390,7 +400,7 @@ def render(package, output_path=None):
                 "ffmpeg","-y","-loop","1","-i",str(svg),
                 "-t",str(scene_duration),"-vf",vf,
                 "-an","-c:v","libx264","-preset","ultrafast","-threads","2",
-                "-pix_fmt","yuv420p","-r","30",str(seg)
+                "-pix_fmt","yuv420p","-r","20",str(seg)
             ]
             p=subprocess.run(cmd,capture_output=True,text=True,timeout=150)
             if p.returncode!=0:
@@ -401,10 +411,9 @@ def render(package, output_path=None):
         concat = work / "concat.txt"
         concat.write_text("".join(f"file '{p}'\n" for p in segment_files), encoding="utf-8")
 
-        # Rights-safe synthetic BGM and per-scene SFX. These are generated
-        # tones, not copyrighted recordings.
+        # Rights-safe synthetic BGM. No per-scene cue is generated; this
+        # intentionally removes the repetitive "pip" heard at scene changes.
         audio = work / "audio.wav"
-        sfx = work / "sfx.wav"
         ap=subprocess.run([
             "ffmpeg","-y",
             "-f","lavfi","-i",f"sine=frequency=196:sample_rate=48000:duration={total}",
@@ -416,27 +425,19 @@ def render(package, output_path=None):
         if ap.returncode!=0:
             return {"ok":False,"status":"audio_render_error","engine":status,"error":ap.stderr[-1000:]}
 
-        # No repetitive "pip" at every scene boundary. Use a silent track for mux compatibility.
-        sp=subprocess.run([
-            "ffmpeg","-y","-f","lavfi","-i",
-            f"anullsrc=r=48000:cl=stereo:d={total}",
-            "-c:a","pcm_s16le",str(sfx)
-        ],capture_output=True,text=True,timeout=30)
-        if sp.returncode!=0:
-            return {"ok":False,"status":"sfx_render_error","engine":status,"error":sp.stderr[-1000:]}
-
         narration = work / "narration.mp3"
-        narration_text = _make_narration_text(command,chunks,title)
+        if not narration_text:
+            narration_text = _make_narration_text(command,chunks,title)
         tts_result = _render_narration(narration_text,narration)
 
         if tts_result.get("ok"):
             p=subprocess.run([
                 "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),
-                "-i",str(narration),"-i",str(audio),"-i",str(sfx),
+                "-i",str(narration),"-i",str(audio),
                 "-filter_complex",
                 "[0:v]scale=1080:1920,fps=30[v];"
-                "[1:a]volume=1.0[voice];[2:a]volume=0.16[music];[3:a]volume=0.0[fx];"
-                "[voice][music][fx]amix=inputs=3:duration=longest:normalize=0,"
+                "[1:a]volume=1.0[voice];[2:a]volume=0.16[music];"
+                "[voice][music]amix=inputs=2:duration=longest:normalize=0,"
                 "loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
                 "-map","[v]","-map","[aout]",
                 "-c:v","libx264","-preset","ultrafast","-threads","2","-pix_fmt","yuv420p",
@@ -446,11 +447,11 @@ def render(package, output_path=None):
         else:
             p=subprocess.run([
                 "ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),
-                "-i",str(audio),"-i",str(sfx),
+                "-i",str(audio),
                 "-filter_complex",
                 "[0:v]scale=1080:1920,fps=30[v];"
-                "[1:a]volume=0.16[music];[2:a]volume=0.0[fx];"
-                "[music][fx]amix=inputs=2:duration=longest:normalize=0,"
+                "[1:a]volume=0.16[music];"
+                "[music]anull,"
                 "loudnorm=I=-15:TP=-1.5:LRA=9[aout]",
                 "-map","[v]","-map","[aout]",
                 "-c:v","libx264","-preset","ultrafast","-threads","1","-pix_fmt","yuv420p",
@@ -501,11 +502,11 @@ def render(package, output_path=None):
             "final_pass":False,
             "final_pass_reason":"添付参考動画の特性（約71秒、9:16、高密度のオリジナルビジュアル、2〜6秒の変化、白字幕＋黒フチ、ナレーション、BGM/SFX）を最低品質基準として実装。最終合格は人間確認を必須とする。",
             "benchmark":{"reference_duration_seconds":71.05,"reference_resolution":"512x910","target_resolution":"1080x1920","target_scene_change_seconds":"2-6","visual_policy":"original_generated/vector only","people_policy":"no identifiable people"},
-            "audio_mode":("neural_narration_plus_bgm_sfx" if tts_result.get("ok") else "synthetic_bgm_sfx_fallback"),
+            "audio_mode":("neural_narration_plus_bgm" if tts_result.get("ok") else "synthetic_bgm_fallback"),
             "narration_voice":tts_result.get("voice") if tts_result.get("ok") else None,
             "narration_verified":bool(tts_result.get("ok")),
             "narration_error":tts_result.get("error") if not tts_result.get("ok") else None,
-            "sfx":"synthetic per-scene cue",
+            "sfx":"disabled; no repetitive scene-boundary cue",
             "rights_safe_assets":True,
             "external_editors":[
                 {"name":"CapCut","url":"https://www.capcut.com/editor","purpose":"任意の人間仕上げ。素材・字幕・音声・トランジション"},
