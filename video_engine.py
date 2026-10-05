@@ -184,17 +184,39 @@ def render(package, output_path=None):
         valid=(video.get("codec_name")=="h264" and video.get("width")==1080 and video.get("height")==1920 and duration>=(0.9 if test_mode else 29) and audio_stream.get("codec_name")=="aac")
         if not valid:
             return {"ok":False,"status":"validation_failed","engine":status,"path":str(out),"probe":info}
+        visual=_visual_frame_check(out,duration,scene_count)
+        if not visual.get("ok"):
+            return {"ok":False,"status":"visual_validation_failed","engine":status,"path":str(out),"probe":info,"visual_check":visual}
         return {
             "ok":True,"status":"rendered","engine":status,"path":str(out),
             "filename":out.name,"duration_seconds":round(duration,2),
             "format":{"width":1080,"height":1920,"fps":30,"container":"mp4","video_codec":"h264","audio_codec":"aac"},
             "scene_count":scene_count,"scene_change_seconds":5,
             "assets":"generated-only; no external SaaS media",
-            "quality":"draft MP4 validated by ffprobe; visible scene layout and Japanese font required"
+            "quality":"draft MP4 validated by ffprobe plus decoded-frame visual check; Japanese font and visible scene layout required","visual_check":visual
         }
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
+def _visual_frame_check(path, total_seconds, samples=6):
+    """Decode small RGB samples and reject a technically valid but visually blank MP4."""
+    checks=[]
+    for i in range(samples):
+        ts=min(max(0.2, i*(total_seconds/max(samples,1))+0.2), max(0.2,total_seconds-0.2))
+        p=subprocess.run([
+            "ffmpeg","-v","error","-ss",str(ts),"-i",str(path),
+            "-frames:v","1","-vf","scale=180:320","-f","rawvideo","-pix_fmt","rgb24","pipe:1"
+        ],capture_output=True,timeout=30)
+        raw=p.stdout
+        if p.returncode!=0 or len(raw)<1000:
+            return {"ok":False,"reason":"frame_decode_failed","sample":i+1}
+        vals=list(raw)
+        mean=sum(vals)/len(vals)
+        mean_sq=sum(v*v for v in vals)/len(vals)
+        variance=max(0.0,mean_sq-(mean*mean))
+        checks.append({"sample":i+1,"mean":round(mean,1),"variance":round(variance,1)})
+    visible=all(x["mean"]>8 and x["variance"]>25 for x in checks)
+    return {"ok":visible,"samples":checks,"reason":"" if visible else "visually_blank_or_uniform"}
 def self_test():
     status=engine_status()
     if not status["available"]:
