@@ -44,7 +44,21 @@ def cors(h):
  h.send_header("Access-Control-Allow-Origin","*");h.send_header("Access-Control-Allow-Headers","Content-Type,X-Self-Test-Token");h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
 
 def reply(h,c,o):
- b=json.dumps(o,ensure_ascii=False).encode();h.send_response(c);cors(h);h.send_header("Content-Type","application/json; charset=utf-8");h.send_header("Content-Length",str(len(b)));h.end_headers();h.wfile.write(b)
+    """Send JSON without turning a client disconnect into an application error.
+
+    Render/mobile clients can cancel a request while a long-running generation
+    is finishing. BrokenPipeError/ConnectionResetError is a transport event,
+    not a production-generation failure, so it is intentionally ignored.
+    """
+    b=json.dumps(o,ensure_ascii=False).encode()
+    try:
+        h.send_response(c); cors(h)
+        h.send_header("Content-Type","application/json; charset=utf-8")
+        h.send_header("Content-Length",str(len(b)))
+        h.end_headers()
+        h.wfile.write(b)
+    except (BrokenPipeError, ConnectionResetError):
+        return
 
 def research_news(query, limit=10):
     q=str(query or '').strip()
