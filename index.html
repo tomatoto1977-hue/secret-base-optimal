@@ -101,7 +101,7 @@ alight:'Alight Motion用指示：縦9:16ショート動画。台本に沿って�
 vrew:'Vrew用指示：日本語ナレーションと字幕を照合し、誤字・字幕タイミング・読みやすさを修正。無料範囲を優先し、課金しない。テーマ：',
 edits:'Edits用指示：縦9:16ショート動画を編集。不要な間をカットし、場面転換、字幕、音声とBGMのバランスを確認。投稿は行わず、課金しない。テーマ：'
 };
-function setCommand(t){const input=$('command'); if(input){input.value=t+(theme?' '+theme:'');input.scrollIntoView({behavior:'smooth',block:'center'});$('devroomProductionStatus').textContent='指示を統括入力欄へ転送しました。内容を確認してから「実行」を押してください。';}}
+function setCommand(t){const input=$('command'); if(input){const chosen=theme||selectedTheme||$('devroomNotes')?.value?.trim()||$('researchQuery')?.value?.trim()||'';input.value=t+(chosen?' '+chosen:'');input.scrollIntoView({behavior:'smooth',block:'center'});$('devroomProductionStatus').textContent='工程を開始しました。進行状況と成果物は下部に表示されます。';}}
 $('devroomObsidian').onclick=()=>{window.location.href='obsidian://open';};
 $('devroomResearch').onclick=()=>{const q=$('devroomNotes').value.trim();if($('researchQuery'))$('researchQuery').value=q||'神話 ショート動画 テーマ';$('researchQuery')?.scrollIntoView({behavior:'smooth',block:'center'});$('devroomThemeStatus').textContent='リサーチ欄へ引き継ぎました。リサーチボタンを押して結果を確認してください。';};
 $('devroomTheme').onclick=()=>{theme=$('devroomNotes').value.trim();$('devroomThemeStatus').textContent=theme?'採用テーマ（メモから設定）：'+theme:'テーマが空です。メモを入力してください。';if(theme&&$('researchQuery'))$('researchQuery').value=theme;};
