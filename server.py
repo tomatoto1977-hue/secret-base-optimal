@@ -12,7 +12,7 @@ SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
 INTEGRATION_BRIDGE_TOKEN=os.environ.get("INTEGRATION_BRIDGE_TOKEN","").strip()
 INTEGRATION_QUEUE=[]
 INTEGRATION_RESULTS={}
-VERSION="3.8.2"
+VERSION="3.8.3"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -647,12 +647,6 @@ class Handler(BaseHTTPRequestHandler):
     task["status"]="claimed"
     INTEGRATION_RESULTS[task["job_id"]]={"status":"running","claimed_at":datetime.now(timezone.utc).isoformat()}
    reply(self,200,{"ok":True,"task":task});return
-  if self.path.startswith("/integration/status/"):
-   job_id=urllib.parse.unquote(self.path[len("/integration/status/"):]).split("?")[0]
-   if not job_id or "/" in job_id:
-    reply(self,404,{"ok":False,"error":"invalid_integration_job_id"});return
-   result=INTEGRATION_RESULTS.get(job_id)
-   reply(self,200,{"ok":True,"result":result or {"status":"not_queued"}});return
   if self.path.startswith("/health"):
    reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"run_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
