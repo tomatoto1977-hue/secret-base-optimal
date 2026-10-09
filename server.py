@@ -86,11 +86,21 @@ def queue_video_job(command, artifact, run_id):
                         "mp4_validation_status":"pending","obsidian_export_status":"pending","human_review_required":True}})
             print("VIDEO_RENDER_BEGIN",json.dumps({"job_id":job_id,"dedicated_narration":narration_present},ensure_ascii=False),flush=True)
             pkg=build_video_package(command,artifact); pkg["title"]=command[:80]
+            def update_render_progress(stage, percent, message, metrics=None):
+                current=dict(job.get("metrics") or {})
+                if isinstance(metrics,dict): current.update(metrics)
+                job.update({"stage":stage,"progress":max(int(job.get("progress",0)),int(percent)),
+                            "message":message,"metrics":current})
+            pkg["progress_callback"]=update_render_progress
             draft=render_video_package(pkg,approved=True)
             if not draft.get("ok"):
                 err={"status":draft.get("status"),"error":str(draft.get("error") or "")[:1200],"elapsed_seconds":round(time.time()-started,1)}
                 print("VIDEO_RENDER_FAILED",json.dumps({"job_id":job_id,**err},ensure_ascii=False),flush=True)
-                job.update({"status":"failed","stage":"draft_render","progress":100,"message":"初版動画の生成に失敗","error":draft.get("error") or draft.get("status")})
+                metrics=dict(job.get("metrics") or {})
+                metrics.update({"render_status":"failed","mp4_validation_status":"failed",
+                                "narration_status":draft.get("narration_status",metrics.get("narration_status","not_completed")),
+                                "failure_code":draft.get("status"),"human_review_required":True})
+                job.update({"status":"failed","stage":"draft_render","progress":100,"message":"初版動画の生成に失敗","error":draft.get("error") or draft.get("status"),"metrics":metrics})
                 return
             job.update({"stage":"underground_finish","progress":55,"message":"地下仕上げ：字幕・演出・音声・テンポ・権利安全を自動検査中"})
             # The current deployment performs the no-cost finalization locally.
@@ -119,7 +129,9 @@ def queue_video_job(command, artifact, run_id):
             print("VIDEO_RENDER_COMPLETED",json.dumps({"job_id":job_id,"filename":finish.get("filename"),"duration_seconds":finish.get("duration_seconds"),"audio_mode":finish.get("audio_mode"),"narration_verified":finish.get("narration_verified"),"elapsed_seconds":round(time.time()-started,1)},ensure_ascii=False),flush=True)
         except Exception as e:
             print("VIDEO_RENDER_EXCEPTION",json.dumps({"job_id":job_id,"error":str(e)[:1200],"elapsed_seconds":round(time.time()-started,1)},ensure_ascii=False),flush=True)
-            job.update({"status":"failed","stage":"error","progress":100,"message":"地下制作を安全停止しました","error":str(e)[:1000]})
+            metrics=dict(job.get("metrics") or {})
+            metrics.update({"render_status":"failed","failure_reason":str(e)[:300],"human_review_required":True})
+            job.update({"status":"failed","stage":"error","progress":100,"message":"地下制作を安全停止しました","error":str(e)[:1000],"metrics":metrics})
     VIDEO_EXECUTOR.submit(worker)
     return job_id
 
