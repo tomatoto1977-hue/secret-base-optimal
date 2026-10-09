@@ -475,12 +475,39 @@ class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   if self.path.startswith("/video/"):
    name=urllib.parse.unquote(self.path[len("/video/"):]).split("?")[0]
-   if not name or "/" in name or "\\" in name: reply(self,404,{"ok":False});return
+   if not name or "/" in name or "\\" in name: reply(self,404,{"ok":False,"error":"invalid_video_name"});return
    path=VIDEO_ROOT / os.path.basename(name)
-   if not path.exists(): reply(self,404,{"ok":False,"error":"video_not_found"});return
+   if not path.is_file(): reply(self,404,{"ok":False,"error":"video_not_found"});return
    try:
-    b=path.read_bytes();self.send_response(200);cors(self);self.send_header("Content-Type","video/mp4");self.send_header("Content-Length",str(len(b)));self.send_header("Content-Disposition","inline; filename="+path.name);self.end_headers();self.wfile.write(b)
-   except Exception as e: reply(self,500,{"ok":False,"error":str(e)})
+    size=path.stat().st_size
+    if size<=0: reply(self,404,{"ok":False,"error":"video_empty"});return
+    start_byte,end_byte=0,size-1;status=200
+    rng=self.headers.get("Range","")
+    if rng:
+     m=re.match(r"bytes=(\\d*)-(\\d*)$",rng.strip())
+     if not m:
+      self.send_response(416);cors(self);self.send_header("Content-Range",f"bytes */{size}");self.end_headers();return
+     a,b=m.groups()
+     if not a and not b:
+      self.send_response(416);cors(self);self.send_header("Content-Range",f"bytes */{size}");self.end_headers();return
+     if not a: start_byte=max(0,size-int(b))
+     else: start_byte=int(a)
+     end_byte=min(int(b),size-1) if b else size-1
+     if start_byte>=size or end_byte<start_byte:
+      self.send_response(416);cors(self);self.send_header("Content-Range",f"bytes */{size}");self.end_headers();return
+     status=206
+    length=end_byte-start_byte+1
+    self.send_response(status);cors(self);self.send_header("Content-Type","video/mp4");self.send_header("Accept-Ranges","bytes");self.send_header("Content-Length",str(length));self.send_header("Content-Disposition",'inline; filename="'+path.name+'"')
+    if status==206:self.send_header("Content-Range",f"bytes {start_byte}-{end_byte}/{size}")
+    self.end_headers()
+    with path.open("rb") as fp:
+     fp.seek(start_byte);remaining=length
+     while remaining:
+      chunk=fp.read(min(262144,remaining))
+      if not chunk:break
+      self.wfile.write(chunk);remaining-=len(chunk)
+   except (BrokenPipeError,ConnectionResetError): pass
+   except Exception as e: print("VIDEO_SERVE_ERROR",json.dumps({"name":name,"error":str(e)},ensure_ascii=False),flush=True)
    return
   if self.path.startswith("/run-job/"):
    job_id=urllib.parse.unquote(self.path[len("/run-job/"):]).split("?")[0]
