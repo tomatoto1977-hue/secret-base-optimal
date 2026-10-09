@@ -668,8 +668,11 @@ class Handler(BaseHTTPRequestHandler):
     job_id=str(d.get("job_id","")).strip()
     if not job_id or len(job_id)>80 or "/" in job_id or "\\\\" in job_id:
      reply(self,400,{"ok":False,"error":"invalid_job_id"});return
-    allowed={"job_id","claude","images","obsidian","local_artifact_dir","human_review_required","mp4_updated_with_ai_images"}
+    allowed={"job_id","claude","images","obsidian","human_review_required","mp4_updated_with_ai_images"}
     result={k:d.get(k) for k in allowed if k in d}
+    # Do not expose the companion PC filesystem paths in public job status.
+    if isinstance(result.get("obsidian"),dict):
+     result["obsidian"]={"status":result["obsidian"].get("status","unknown")}
     result["status"]="completed"
     result["received_at"]=datetime.now(timezone.utc).isoformat()
     INTEGRATION_RESULTS[job_id]=result
