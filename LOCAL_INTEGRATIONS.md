@@ -15,7 +15,7 @@ This optional companion runs on the user's PC because Render cannot access a Win
 4. Find the actual local Obsidian vault folder. An iPhone-only vault is not a Windows path; use an existing synced folder or approved sync method.
 5. In Render, set INTEGRATION_BRIDGE_TOKEN to a long random secret. This setting is not automatically changed by this code.
 6. On Windows, set the same secret as SECRET_BASE_BRIDGE_TOKEN, plus OBSIDIAN_VAULT_PATH. Set ALLOW_CLAUDE_CODE=true and/or ALLOW_LOCAL_COMFYUI=true only after manually testing those tools. Both default to false.
-7. Run python local_integration_worker.py and keep the PC awake and connected.
+7. Set the token and vault path for the current PowerShell session, then run `./start_secret_base_local.ps1`. The launcher keeps Claude Code and ComfyUI disabled unless explicitly enabled. Alternatively run `python local_integration_worker.py` directly. Keep the PC awake and connected.
 
 Example PowerShell (replace values locally; never paste the token into GitHub):
 
@@ -25,7 +25,7 @@ $env:SECRET_BASE_BRIDGE_TOKEN="YOUR_LOCAL_SECRET"
 $env:OBSIDIAN_VAULT_PATH="C:\\Users\\YOUR_USER\\Documents\\Obsidian Vault"
 $env:ALLOW_CLAUDE_CODE="false"
 $env:ALLOW_LOCAL_COMFYUI="false"
-python .\\local_integration_worker.py
+./start_secret_base_local.ps1
 ```
 
 ## Safety and limitations
