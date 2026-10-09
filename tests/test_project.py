@@ -27,6 +27,8 @@ def test_server_safety_controls():
     assert "COPYRIGHT_TOPIC_TERMS" in src
     assert "SELF_TEST_TOKEN" in src
     assert "RUN_SMOKE_ON_START" in src
+    assert "RUN_VIDEO_SELF_TEST_ON_START" in src
+    assert "VIDEO_ENGINE_SELF_TEST_SKIPPED" in src
 
 def test_reply_handles_client_disconnect():
     src=(ROOT/"server.py").read_text(encoding="utf-8")
@@ -60,3 +62,5 @@ def test_stage_buttons_execute_and_retry_transient_errors():
     assert "setCommand(prompts[b.dataset.stage]||'制作工程を確認：');run();" in html
     assert "networkRetries<8" in html
     assert "j.source_warning" in html
+    assert "localStorage.removeItem('sb3_active_run_job')" in html
+    assert "MP4の完成は未確認です" in html
