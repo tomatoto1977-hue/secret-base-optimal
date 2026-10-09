@@ -79,3 +79,8 @@ def test_tts_failure_does_not_block_video_fallback():
     assert '"stderr":(install.stderr or "")[-1800:]' in engine
     assert 'return {"ok":False,"reason":"edge_tts_unavailable"}' in engine
     assert '"audio_mode":("neural_narration_plus_bgm" if tts_result.get("ok") else "synthetic_bgm_fallback")' in engine
+
+def test_video_generation_keeps_run_locked_until_background_job_finishes():
+    html=(ROOT/"index.html").read_text(encoding="utf-8")
+    assert "await pollVideoJob(video.job_id)" in html
+    assert "動画生成が停止しました：" in html
