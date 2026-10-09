@@ -64,3 +64,18 @@ def test_stage_buttons_execute_and_retry_transient_errors():
     assert "j.source_warning" in html
     assert "localStorage.removeItem('sb3_active_run_job')" in html
     assert "MP4の完成は未確認です" in html
+
+def test_video_jobs_are_serialized_and_logged():
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert "VIDEO_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=1" in server
+    assert "RUN_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=1" in server
+    assert "VIDEO_RENDER_COMPLETED" in server
+    assert "VIDEO_RENDER_FAILED" in server
+    assert "VIDEO_RENDER_EXCEPTION" in server
+
+def test_tts_failure_does_not_block_video_fallback():
+    engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
+    assert '"--retries","1","--timeout","12"' in engine
+    assert '"stderr":(install.stderr or "")[-1800:]' in engine
+    assert 'return {"ok":False,"reason":"edge_tts_unavailable"}' in engine
+    assert '"audio_mode":("neural_narration_plus_bgm" if tts_result.get("ok") else "synthetic_bgm_fallback")' in engine
