@@ -247,6 +247,34 @@ ROLE_TASKS=[
  ("実装","全担当の成果を統合し、今回の完成成果物を作る。前回評価を明示的に反映する。動画依頼なら、参考動画を最低品質基準として、1080x1920、9:16、冒頭2秒フック、2〜6秒程度の画面変化、読みやすい白字幕＋黒フチ、権利安全な音声、CTA、ウォーターマークなしを必ず具体化する。最後に『完成成果物』『前回評価の反映』『自己検査』の3見出しを付ける。")
 ]
 
+def classify_ai_http_error(provider, model, error):
+ """Return a safe, actionable AI HTTP error without logging credentials or full response bodies."""
+ raw=""
+ try: raw=error.read().decode("utf-8","replace")
+ except Exception: pass
+ try:
+  payload=json.loads(raw) if raw else {}
+ except Exception:
+  payload={}
+ detail=payload.get("error",{}) if isinstance(payload,dict) else {}
+ if not isinstance(detail,dict): detail={}
+ code=str(detail.get("status") or detail.get("code") or "").strip()
+ message=str(detail.get("message") or "").strip()
+ lowered=(code+" "+message+" "+raw[:200]).lower()
+ if error.code==429:
+  if any(x in lowered for x in ("quota","resource_exhausted","insufficient_quota","billing","limit: 0","exceeded your current")):
+   category="quota_exhausted"
+   guidance="利用枠・クォータ超過の可能性が高いため、時間を置くだけでは回復しない場合があります。課金設定は変更せず、提供元の利用状況を確認してください。"
+  else:
+   category="rate_limited"
+   guidance="短時間のリクエスト制限の可能性があります。自動連続再試行を避け、時間を置いて少量で再試行してください。"
+ else:
+  category="provider_error"
+  guidance="提供元の状態と設定を確認してください。"
+ safe_code=re.sub(r"[^A-Za-z0-9_.-]","",code)[:80] or "unspecified"
+ print("AI_PROVIDER_HTTP_ERROR",json.dumps({"provider":provider,"model":model,"http_status":error.code,"category":category,"provider_code":safe_code},ensure_ascii=False),flush=True)
+ return RuntimeError(f"{provider} HTTP {error.code} [{category}; code={safe_code}]: {guidance}")
+
 def ask_alt(prompt):
  if not ALT_TOKEN: raise RuntimeError("ALT_MODEL_TOKENが未設定です")
  url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -259,9 +287,12 @@ def ask_alt(prompt):
    if out:return str(out).strip()
    raise RuntimeError("代替AI応答が空です")
   except urllib.error.HTTPError as e:
-   raw=e.read().decode("utf-8","replace")
-   if e.code in (429,500,502,503,504) and attempt<2:time.sleep(2**attempt);continue
-   raise RuntimeError("代替AI HTTP "+str(e.code)+": "+raw[:500])
+   if e.code in (429,500,502,503,504) and attempt<2:
+    # Retry transient responses only a bounded number of times.
+    time.sleep(min(4,2**attempt))
+    continue
+   if e.code==429: raise classify_ai_http_error("Gemini",ALT_MODEL,e)
+   raise RuntimeError("Gemini HTTP "+str(e.code)+": provider returned a non-success response")
  raise RuntimeError("代替AI応答を取得できませんでした")
 
 def ask(prompt):
@@ -304,7 +335,8 @@ def run_integrated_alt(command,learning):
    if e.code in (429,500,502,503,504) and attempt==0:
     time.sleep(2)
     continue
-   raise
+   if e.code==429: raise classify_ai_http_error("Gemini",ALT_MODEL,e)
+   raise RuntimeError("Gemini HTTP "+str(e.code)+": provider returned a non-success response")
  msg=data.get("choices",[{}])[0].get("message",{})
  raw=(msg.get("content","") if isinstance(msg,dict) else "")
  if isinstance(msg,dict) and not raw and msg.get("parsed") is not None: raw=json.dumps(msg.get("parsed"),ensure_ascii=False)
@@ -429,8 +461,14 @@ def run_pipeline(command,learning):
    msg=str(e)
    if "429" in msg or "Too Many Requests" in msg or "rate" in msg.lower():
     if is_video_request(command):
-     print("VIDEO_AI_RATE_LIMIT_SAFE_STOP",msg[:500],flush=True)
-     raise RuntimeError("動画制作を安全停止しました：AIの利用上限／レート制限です。固定台本や企画書の読み上げで代用していません。時間をおいて再試行してください。")
+     if "quota_exhausted" in msg:
+      reason="利用枠・クォータ超過"
+      guidance="提供元の利用状況を確認してください。課金設定や有料プランは変更していません。"
+     else:
+      reason="レート制限"
+      guidance="時間を置き、少量のテストで再試行してください。"
+     print("VIDEO_AI_RATE_LIMIT_SAFE_STOP",json.dumps({"provider":"Gemini","model":ALT_MODEL,"reason":reason,"details":msg[:220]},ensure_ascii=False),flush=True)
+     raise RuntimeError("動画制作を安全停止しました："+reason+"です。"+guidance+" 固定台本や企画書の読み上げで代用していません。")
     print("AI_RATE_LIMIT_LOCAL_FALLBACK",msg[:500],flush=True)
     return local_quota_fallback(command,learning)
    raise
