@@ -133,3 +133,5 @@ def test_live_progress_updates_from_real_render_stages():
     assert 'report_progress("bgm_ready"' in engine
     assert 'report_progress("narration_ready"' in engine
     assert 'report_progress("mp4_probe"' in engine
+    assert '"claude_code_status":"not_connected"' in server
+    assert '"ai_image_provider_status":"not_configured"' in server
