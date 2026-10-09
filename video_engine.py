@@ -236,6 +236,16 @@ def render(package, output_path=None):
     scene_count = 1 if test_mode else 12
     scene_duration = 1 if test_mode else 5.9
     total = scene_count * scene_duration
+    progress_callback = package.get("progress_callback")
+    def report_progress(stage, percent, message, **metrics):
+        if callable(progress_callback):
+            try:
+                progress_callback(stage, percent, message, metrics)
+            except Exception:
+                # Telemetry must never crash the media renderer.
+                pass
+    report_progress("preflight", 8, "台本と制作条件を確認しました",
+                    script_status="validated", scene_plan_status="ready")
     if output_path is None:
         output_path = str(VIDEO_ROOT / ("video_" + uuid.uuid4().hex[:12] + ".mp4"))
     out = Path(output_path)
@@ -462,6 +472,9 @@ def render(package, output_path=None):
                 return {"ok":False,"status":"scene_render_error","engine":status,"scene":i+1,"error":p.stderr[-1800:]}
 
             segment_files.append(seg)
+            report_progress("scene_render", 18 + int(48 * (i + 1) / scene_count),
+                            "シーン素材をレンダリング中（"+str(i+1)+"/"+str(scene_count)+"）",
+                            vector_scenes_created=i+1, ai_images_created=0)
 
         concat = work / "concat.txt"
         concat.write_text("".join(f"file '{p}'\n" for p in segment_files), encoding="utf-8")
@@ -471,6 +484,8 @@ def render(package, output_path=None):
         bgm_result = _write_bgm(audio, total)
         if not bgm_result.get("ok"):
             return {"ok":False,"status":"bgm_generation_failed","engine":status}
+        report_progress("bgm_ready", 70, "オリジナル合成BGMを生成しました",
+                        bgm_status="generated", bgm_duration_seconds=bgm_result.get("duration_seconds"))
 
         narration = work / "narration.mp3"
         tts_result = _render_narration(narration_text,narration)
@@ -478,6 +493,8 @@ def render(package, output_path=None):
             return {"ok":False,"status":"narration_generation_failed",
                     "error":tts_result.get("error") or tts_result.get("reason"),
                     "script_status":"validated","narration_status":"failed"}
+        report_progress("narration_ready", 78, "ナレーション音声を生成しました",
+                        narration_status="generated")
 
         if tts_result.get("ok"):
             p=subprocess.run([
@@ -510,6 +527,8 @@ def render(package, output_path=None):
 
         if p.returncode!=0:
             return {"ok":False,"status":"final_mux_error","engine":status,"error":p.stderr[-1800:]}
+        report_progress("mux_complete", 90, "映像・ナレーション・BGMを合成しました",
+                        render_status="mux_complete")
 
         probe=subprocess.run([
             "ffprobe","-v","error","-show_entries",
@@ -529,6 +548,9 @@ def render(package, output_path=None):
         if not valid:
             return {"ok":False,"status":"validation_failed","engine":status,"path":str(out),"probe":info}
 
+        report_progress("mp4_probe", 95, "MP4のコーデック・解像度・尺を検査しました",
+                        mp4_validation_status="probe_passed", mp4_duration_seconds=round(duration,2),
+                        mp4_size_bytes=out.stat().st_size if out.exists() else 0)
         visual=_visual_frame_check(out,duration,scene_count)
         if not visual.get("ok"):
             return {"ok":False,"status":"visual_validation_failed","engine":status,"path":str(out),"probe":info,"visual_check":visual}
@@ -542,6 +564,9 @@ def render(package, output_path=None):
             "cost_policy":"Do not require paid SaaS or metered external video services."
         }
 
+        report_progress("ready_for_review", 100, "MP4技術検査が完了しました",
+                        render_status="completed", mp4_validation_status="passed",
+                        mp4_duration_seconds=round(duration,2), mp4_size_bytes=out.stat().st_size)
         return {
             "ok":True,"status":"rendered","engine":status,"path":str(out),
             "filename":out.name,"duration_seconds":round(duration,2),
