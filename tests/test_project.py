@@ -23,7 +23,7 @@ def test_c_validation_is_not_real_mp4():
 
 def test_server_safety_controls():
     src=(ROOT/"server.py").read_text(encoding="utf-8")
-    assert 'VERSION="3.8.2"' in src
+    assert 'VERSION="3.8.3"' in src
     assert "COPYRIGHT_TOPIC_TERMS" in src
     assert "SELF_TEST_TOKEN" in src
     assert "RUN_SMOKE_ON_START" in src
@@ -135,3 +135,11 @@ def test_live_progress_updates_from_real_render_stages():
     assert 'report_progress("mp4_probe"' in engine
     assert '"claude_code_status":"not_connected"' in server
     assert '"ai_image_provider_status":"not_configured"' in server
+
+def test_authenticated_local_integration_bridge():
+    src=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert 'INTEGRATION_BRIDGE_TOKEN=os.environ.get("INTEGRATION_BRIDGE_TOKEN","").strip()' in src
+    assert 'self.path.startswith("/integration/next")' in src
+    assert 'self.path=="/integration/result"' in src
+    assert 'integration_authorized(self)' in src
+    assert 'mp4_updated_with_ai_images' in src
