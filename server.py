@@ -18,9 +18,9 @@ AGENTS=[("統括","さとる"),("市場調査","りょう"),("競争戦略","た
 LEARNING=[]
 RUNS={}
 VIDEO_JOBS={}
-VIDEO_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='secret-base-video')
+VIDEO_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=1,thread_name_prefix='secret-base-video')
 RUN_JOBS={}
-RUN_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='secret-base-run')
+RUN_EXECUTOR=concurrent.futures.ThreadPoolExecutor(max_workers=1,thread_name_prefix='secret-base-run')
 
 # Conservative copyright-topic filter for production themes.
 COPYRIGHT_TOPIC_TERMS = [
@@ -74,11 +74,16 @@ def queue_video_job(command, artifact, run_id):
     def worker():
         job=VIDEO_JOBS.get(job_id)
         if not job:return
+        started=time.time()
+        print("VIDEO_JOB_STARTED",json.dumps({"job_id":job_id,"run_id":run_id,"command":str(command)[:180]},ensure_ascii=False),flush=True)
         try:
             job.update({"status":"running","stage":"draft_render","progress":15,"message":"初版MP4を検証しながら生成中"})
+            print("VIDEO_RENDER_BEGIN",json.dumps({"job_id":job_id},ensure_ascii=False),flush=True)
             pkg=build_video_package(command,artifact); pkg["title"]=command[:80]
             draft=render_video_package(pkg,approved=True)
             if not draft.get("ok"):
+                err={"status":draft.get("status"),"error":str(draft.get("error") or "")[:1200],"elapsed_seconds":round(time.time()-started,1)}
+                print("VIDEO_RENDER_FAILED",json.dumps({"job_id":job_id,**err},ensure_ascii=False),flush=True)
                 job.update({"status":"failed","stage":"draft_render","progress":100,"message":"初版動画の生成に失敗","error":draft.get("error") or draft.get("status")})
                 return
             job.update({"stage":"underground_finish","progress":55,"message":"地下仕上げ：字幕・演出・音声・テンポ・権利安全を自動検査中"})
@@ -94,7 +99,9 @@ def queue_video_job(command, artifact, run_id):
             job.update({"status":"completed","stage":"ready_for_review","progress":100,"message":"地下仕上げ完了。人間確認待ち。","video":finish})
             RUNS.setdefault(run_id,{})["video_job_id"]=job_id
             RUNS[run_id]["video"]=finish
+            print("VIDEO_RENDER_COMPLETED",json.dumps({"job_id":job_id,"filename":finish.get("filename"),"duration_seconds":finish.get("duration_seconds"),"audio_mode":finish.get("audio_mode"),"narration_verified":finish.get("narration_verified"),"elapsed_seconds":round(time.time()-started,1)},ensure_ascii=False),flush=True)
         except Exception as e:
+            print("VIDEO_RENDER_EXCEPTION",json.dumps({"job_id":job_id,"error":str(e)[:1200],"elapsed_seconds":round(time.time()-started,1)},ensure_ascii=False),flush=True)
             job.update({"status":"failed","stage":"error","progress":100,"message":"地下制作を安全停止しました","error":str(e)[:1000]})
     VIDEO_EXECUTOR.submit(worker)
     return job_id
