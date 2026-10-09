@@ -123,3 +123,13 @@ def test_ui_displays_real_stage_metrics_and_obsidian_export():
     assert "MP4検査:" in html
     assert 'id="obsidianExport"' in html
     assert ".join('\\n')" in html
+
+def test_live_progress_updates_from_real_render_stages():
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
+    assert 'pkg["progress_callback"]=update_render_progress' in server
+    assert "def update_render_progress(" in server
+    assert 'report_progress("scene_render"' in engine
+    assert 'report_progress("bgm_ready"' in engine
+    assert 'report_progress("narration_ready"' in engine
+    assert 'report_progress("mp4_probe"' in engine
