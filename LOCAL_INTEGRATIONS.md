@@ -33,5 +33,5 @@ python .\\local_integration_worker.py
 - No automatic social publishing, login automation, money operations, or arbitrary remote shell commands.
 - The server exposes authenticated /integration/next and /integration/result routes. The Render environment variable INTEGRATION_BRIDGE_TOKEN must be configured before the worker can connect. Until then the bridge remains disabled.
 - ComfyUI workflows vary by model/node graph; incompatible workflows fail closed.
-- The worker writes images and a note to the local vault, but does not replace the Render-generated MP4 vector scenes with AI images yet. It records mp4_updated_with_ai_images=false. Do not call the full video pipeline complete until that final render handoff is implemented and tested.
+- When local ComfyUI produces images and the Render MP4 URL is available, the worker can build a separate local 1080x1920 MP4 using those images and the original video's audio, probe the output, and archive it in the Obsidian vault. This is a separate local artifact; it does not overwrite or upload to Render. If image generation, download, FFmpeg, audio, or validation fails, it records mp4_updated_with_ai_images=false and keeps the original MP4 unchanged. End-to-end composition still requires testing on the user's Windows PC.
 - iPhone access relies on the user's existing Obsidian sync; this script runs on Windows, not iOS.
