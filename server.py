@@ -129,8 +129,8 @@ def queue_video_job(command, artifact, run_id):
                         "obsidian_export_status":obsidian_export.get("status"),"human_review_required":True}})
             RUNS.setdefault(run_id,{})["video_job_id"]=job_id
             try:
-                queue_local_integration(job_id, command, RUNS.get(run_id,{}).get("artifact",""), finish)
-                job["metrics"]["local_integration_status"]="queued"
+                bridge_state=queue_local_integration(job_id, command, RUNS.get(run_id,{}).get("artifact",""), finish)
+                job["metrics"]["local_integration_status"]=bridge_state.get("status","queued")
             except Exception as bridge_error:
                 job["metrics"]["local_integration_status"]="queue_failed"
                 print("LOCAL_INTEGRATION_QUEUE_ERROR",str(bridge_error)[:300],flush=True)
@@ -151,6 +151,8 @@ def integration_authorized(h):
 
 def queue_local_integration(job_id, command, artifact, video):
     # Local AI/Obsidian companion is opt-in and cannot execute remote shell commands.
+    if not INTEGRATION_BRIDGE_TOKEN:
+        return {"status":"disabled"}
     task={"job_id":job_id,"command":str(command)[:500],"artifact":str(artifact)[:16000],
           "video_url":video_file_url(video.get("filename")) if video.get("filename") else None,
           "created_at":datetime.now(timezone.utc).isoformat(),"status":"queued"}
@@ -648,7 +650,7 @@ class Handler(BaseHTTPRequestHandler):
     INTEGRATION_RESULTS[task["job_id"]]={"status":"running","claimed_at":datetime.now(timezone.utc).isoformat()}
    reply(self,200,{"ok":True,"task":task});return
   if self.path.startswith("/health"):
-   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"run_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
+   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"integration_bridge_configured":bool(INTEGRATION_BRIDGE_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"run_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
   elif self.path.startswith("/benchmark"):reply(self,200,{"ok":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/smoke-status"):
