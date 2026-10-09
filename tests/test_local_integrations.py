@@ -13,3 +13,8 @@ def test_local_integration_is_opt_in_and_safe():
     assert 'SECRET_BASE_BRIDGE_TOKEN' in src
     assert 'mp4_updated_with_ai_images' in src
     assert 'arbitrary remote shell commands' in docs
+    assert "def compose_ai_images_video(" in src
+    assert "generated_and_validated" in src
+    assert "ai_image_mp4_validation_failed" in src
+    assert "AI画像反映版MP4" in src
+    assert "mp4_updated_with_ai_images" in src
