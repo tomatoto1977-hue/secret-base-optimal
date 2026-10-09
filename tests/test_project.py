@@ -23,7 +23,7 @@ def test_c_validation_is_not_real_mp4():
 
 def test_server_safety_controls():
     src=(ROOT/"server.py").read_text(encoding="utf-8")
-    assert 'VERSION="3.8.1"' in src
+    assert 'VERSION="3.8.2"' in src
     assert "COPYRIGHT_TOPIC_TERMS" in src
     assert "SELF_TEST_TOKEN" in src
     assert "RUN_SMOKE_ON_START" in src
@@ -115,3 +115,11 @@ def test_video_generation_keeps_run_locked_until_background_job_finishes():
     html=(ROOT/"index.html").read_text(encoding="utf-8")
     assert "await pollVideoJob(video.job_id)" in html
     assert "動画生成が停止しました：" in html
+
+def test_ui_displays_real_stage_metrics_and_obsidian_export():
+    html=(ROOT/"index.html").read_text(encoding="utf-8")
+    assert 'id="productionMetrics"' in html
+    assert "AI生成画像:" in html
+    assert "MP4検査:" in html
+    assert 'id="obsidianExport"' in html
+    assert ".join('\\n')" in html
