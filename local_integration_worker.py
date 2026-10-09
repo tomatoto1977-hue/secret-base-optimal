@@ -166,13 +166,25 @@ def write_vault(task, script_result, image_result):
     if script_result.get("path"): lines += ["## ナレーション台本","","![[narration_script.txt]]",""]
     if image_result.get("images"):
         lines += ["## AI生成シーン画像",""] + [f"![[{name}]]" for name in image_result["images"]] + [""]
+    composition=task.get("ai_image_video") or {}
+    if composition.get("filename"):
+        lines += ["## AI画像反映版MP4","",f"- ファイル: [[{composition['filename']}]]",
+                  f"- 状態: {composition.get('status')}",f"- 画像数: {composition.get('image_count',0)}",
+                  "- iPhone等で再生して最終確認してください。",""]
+    else:
+        lines += ["## AI画像反映版MP4","",f"- 状態: {composition.get('status','not_created')}",
+                  "- AI画像がMP4へ反映できたとは確認できていません。",""]
     lines += ["## 状態","",f"- 台本: {script_result.get('status')}",f"- 画像: {image_result.get('status')}",
-      "- 注意: AI画像は元MP4へ合成済みとは限りません。最終動画は目視確認が必要です。",""]
+      "- 自動投稿は無効。公開前に人間確認が必要です。",""]
     if script_result.get("path"):
         shutil.copy2(WORK/job_id/"narration_script.txt", folder/"narration_script.txt")
     for name in image_result.get("images",[]):
         src=WORK/job_id/name
         if src.is_file(): shutil.copy2(src, folder/name)
+    composition=task.get("ai_image_video") or {}
+    if composition.get("filename"):
+        src=WORK/job_id/composition["filename"]
+        if src.is_file(): shutil.copy2(src,folder/src.name)
     (folder / "制作記録.md").write_text("\n".join(lines), encoding="utf-8")
     return {"status":"synced_to_local_vault","path":str(folder / "制作記録.md")}
 
