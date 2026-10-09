@@ -9,7 +9,10 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
-VERSION="3.8.2"
+INTEGRATION_BRIDGE_TOKEN=os.environ.get("INTEGRATION_BRIDGE_TOKEN","").strip()
+INTEGRATION_QUEUE=[]
+INTEGRATION_RESULTS={}
+VERSION="3.8.3"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
 SMOKE_RESULTS=[]
@@ -125,6 +128,12 @@ def queue_video_job(command, artifact, run_id):
                         "mp4_validation_status":"passed" if finish.get("ok") else "failed",
                         "obsidian_export_status":obsidian_export.get("status"),"human_review_required":True}})
             RUNS.setdefault(run_id,{})["video_job_id"]=job_id
+            try:
+                bridge_state=queue_local_integration(job_id, command, RUNS.get(run_id,{}).get("artifact",""), finish)
+                job["metrics"]["local_integration_status"]=bridge_state.get("status","queued")
+            except Exception as bridge_error:
+                job["metrics"]["local_integration_status"]="queue_failed"
+                print("LOCAL_INTEGRATION_QUEUE_ERROR",str(bridge_error)[:300],flush=True)
             RUNS[run_id]["video"]=finish
             print("VIDEO_RENDER_COMPLETED",json.dumps({"job_id":job_id,"filename":finish.get("filename"),"duration_seconds":finish.get("duration_seconds"),"audio_mode":finish.get("audio_mode"),"narration_verified":finish.get("narration_verified"),"elapsed_seconds":round(time.time()-started,1)},ensure_ascii=False),flush=True)
         except Exception as e:
@@ -135,8 +144,23 @@ def queue_video_job(command, artifact, run_id):
     VIDEO_EXECUTOR.submit(worker)
     return job_id
 
+def integration_authorized(h):
+    expected=INTEGRATION_BRIDGE_TOKEN
+    supplied=h.headers.get("Authorization","")
+    return bool(expected) and supplied=="Bearer "+expected
+
+def queue_local_integration(job_id, command, artifact, video):
+    # Local AI/Obsidian companion is opt-in and cannot execute remote shell commands.
+    if not INTEGRATION_BRIDGE_TOKEN:
+        return {"status":"disabled"}
+    task={"job_id":job_id,"command":str(command)[:500],"artifact":str(artifact)[:16000],
+          "video_url":video_file_url(video.get("filename")) if video.get("filename") else None,
+          "created_at":datetime.now(timezone.utc).isoformat(),"status":"queued"}
+    INTEGRATION_QUEUE.append(task)
+    print("LOCAL_INTEGRATION_QUEUED",json.dumps({"job_id":job_id,"queue_length":len(INTEGRATION_QUEUE)},ensure_ascii=False),flush=True)
+
 def cors(h):
- h.send_header("Access-Control-Allow-Origin","*");h.send_header("Access-Control-Allow-Headers","Content-Type,X-Self-Test-Token");h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
+ h.send_header("Access-Control-Allow-Origin","*");h.send_header("Access-Control-Allow-Headers","Content-Type,X-Self-Test-Token,Authorization");h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
 
 def reply(h,c,o):
     """Send JSON without turning a client disconnect into an application error.
@@ -223,6 +247,34 @@ ROLE_TASKS=[
  ("実装","全担当の成果を統合し、今回の完成成果物を作る。前回評価を明示的に反映する。動画依頼なら、参考動画を最低品質基準として、1080x1920、9:16、冒頭2秒フック、2〜6秒程度の画面変化、読みやすい白字幕＋黒フチ、権利安全な音声、CTA、ウォーターマークなしを必ず具体化する。最後に『完成成果物』『前回評価の反映』『自己検査』の3見出しを付ける。")
 ]
 
+def classify_ai_http_error(provider, model, error):
+ """Return a safe, actionable AI HTTP error without logging credentials or full response bodies."""
+ raw=""
+ try: raw=error.read().decode("utf-8","replace")
+ except Exception: pass
+ try:
+  payload=json.loads(raw) if raw else {}
+ except Exception:
+  payload={}
+ detail=payload.get("error",{}) if isinstance(payload,dict) else {}
+ if not isinstance(detail,dict): detail={}
+ code=str(detail.get("status") or detail.get("code") or "").strip()
+ message=str(detail.get("message") or "").strip()
+ lowered=(code+" "+message+" "+raw[:200]).lower()
+ if error.code==429:
+  if any(x in lowered for x in ("quota","resource_exhausted","insufficient_quota","billing","limit: 0","exceeded your current")):
+   category="quota_exhausted"
+   guidance="利用枠・クォータ超過の可能性が高いため、時間を置くだけでは回復しない場合があります。課金設定は変更せず、提供元の利用状況を確認してください。"
+  else:
+   category="rate_limited"
+   guidance="短時間のリクエスト制限の可能性があります。自動連続再試行を避け、時間を置いて少量で再試行してください。"
+ else:
+  category="provider_error"
+  guidance="提供元の状態と設定を確認してください。"
+ safe_code=re.sub(r"[^A-Za-z0-9_.-]","",code)[:80] or "unspecified"
+ print("AI_PROVIDER_HTTP_ERROR",json.dumps({"provider":provider,"model":model,"http_status":error.code,"category":category,"provider_code":safe_code},ensure_ascii=False),flush=True)
+ return RuntimeError(f"{provider} HTTP {error.code} [{category}; code={safe_code}]: {guidance}")
+
 def ask_alt(prompt):
  if not ALT_TOKEN: raise RuntimeError("ALT_MODEL_TOKENが未設定です")
  url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -235,9 +287,12 @@ def ask_alt(prompt):
    if out:return str(out).strip()
    raise RuntimeError("代替AI応答が空です")
   except urllib.error.HTTPError as e:
-   raw=e.read().decode("utf-8","replace")
-   if e.code in (429,500,502,503,504) and attempt<2:time.sleep(2**attempt);continue
-   raise RuntimeError("代替AI HTTP "+str(e.code)+": "+raw[:500])
+   if e.code in (429,500,502,503,504) and attempt<2:
+    # Retry transient responses only a bounded number of times.
+    time.sleep(min(4,2**attempt))
+    continue
+   if e.code==429: raise classify_ai_http_error("Gemini",ALT_MODEL,e)
+   raise RuntimeError("Gemini HTTP "+str(e.code)+": provider returned a non-success response")
  raise RuntimeError("代替AI応答を取得できませんでした")
 
 def ask(prompt):
@@ -280,7 +335,8 @@ def run_integrated_alt(command,learning):
    if e.code in (429,500,502,503,504) and attempt==0:
     time.sleep(2)
     continue
-   raise
+   if e.code==429: raise classify_ai_http_error("Gemini",ALT_MODEL,e)
+   raise RuntimeError("Gemini HTTP "+str(e.code)+": provider returned a non-success response")
  msg=data.get("choices",[{}])[0].get("message",{})
  raw=(msg.get("content","") if isinstance(msg,dict) else "")
  if isinstance(msg,dict) and not raw and msg.get("parsed") is not None: raw=json.dumps(msg.get("parsed"),ensure_ascii=False)
@@ -405,8 +461,14 @@ def run_pipeline(command,learning):
    msg=str(e)
    if "429" in msg or "Too Many Requests" in msg or "rate" in msg.lower():
     if is_video_request(command):
-     print("VIDEO_AI_RATE_LIMIT_SAFE_STOP",msg[:500],flush=True)
-     raise RuntimeError("動画制作を安全停止しました：AIの利用上限／レート制限です。固定台本や企画書の読み上げで代用していません。時間をおいて再試行してください。")
+     if "quota_exhausted" in msg:
+      reason="利用枠・クォータ超過"
+      guidance="提供元の利用状況を確認してください。課金設定や有料プランは変更していません。"
+     else:
+      reason="レート制限"
+      guidance="時間を置き、少量のテストで再試行してください。"
+     print("VIDEO_AI_RATE_LIMIT_SAFE_STOP",json.dumps({"provider":"Gemini","model":ALT_MODEL,"reason":reason,"details":msg[:220]},ensure_ascii=False),flush=True)
+     raise RuntimeError("動画制作を安全停止しました："+reason+"です。"+guidance+" 固定台本や企画書の読み上げで代用していません。")
     print("AI_RATE_LIMIT_LOCAL_FALLBACK",msg[:500],flush=True)
     return local_quota_fallback(command,learning)
    raise
@@ -615,8 +677,18 @@ class Handler(BaseHTTPRequestHandler):
    job=VIDEO_JOBS.get(job_id)
    if not job: reply(self,404,{"ok":False,"error":"video_job_not_found"});return
    reply(self,200,{"ok":True,"job":job});return
+  if self.path.startswith("/integration/next"):
+   if not INTEGRATION_BRIDGE_TOKEN:
+    reply(self,503,{"ok":False,"error":"integration_bridge_disabled"});return
+   if not integration_authorized(self):
+    reply(self,401,{"ok":False,"error":"integration_bridge_unauthorized"});return
+   task=INTEGRATION_QUEUE.pop(0) if INTEGRATION_QUEUE else None
+   if task:
+    task["status"]="claimed"
+    INTEGRATION_RESULTS[task["job_id"]]={"status":"running","claimed_at":datetime.now(timezone.utc).isoformat()}
+   reply(self,200,{"ok":True,"task":task});return
   if self.path.startswith("/health"):
-   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"run_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
+   reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"integration_bridge_configured":bool(INTEGRATION_BRIDGE_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"run_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
   elif self.path.startswith("/benchmark"):reply(self,200,{"ok":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/smoke-status"):
@@ -626,6 +698,35 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   try:
    n=int(self.headers.get("Content-Length","0"));d=json.loads(self.rfile.read(n) or b"{}")
+   if self.path=="/integration/result":
+    if not INTEGRATION_BRIDGE_TOKEN:
+     reply(self,503,{"ok":False,"error":"integration_bridge_disabled"});return
+    if not integration_authorized(self):
+     reply(self,401,{"ok":False,"error":"integration_bridge_unauthorized"});return
+    job_id=str(d.get("job_id","")).strip()
+    if not job_id or len(job_id)>80 or "/" in job_id or "\\\\" in job_id:
+     reply(self,400,{"ok":False,"error":"invalid_job_id"});return
+    allowed={"job_id","claude","images","obsidian","human_review_required","mp4_updated_with_ai_images"}
+    result={k:d.get(k) for k in allowed if k in d}
+    # Do not expose the companion PC filesystem paths in public job status.
+    if isinstance(result.get("obsidian"),dict):
+     result["obsidian"]={"status":result["obsidian"].get("status","unknown")}
+    result["status"]="completed"
+    result["received_at"]=datetime.now(timezone.utc).isoformat()
+    INTEGRATION_RESULTS[job_id]=result
+    job=VIDEO_JOBS.get(job_id)
+    if job:
+     metrics=dict(job.get("metrics") or {})
+     metrics.update({"claude_code_status":(d.get("claude") or {}).get("status","unknown"),
+       "ai_image_provider_status":(d.get("images") or {}).get("status","unknown"),
+       "ai_images_created":int((d.get("images") or {}).get("count",0) or len((d.get("images") or {}).get("images",[]))),
+       "obsidian_export_status":(d.get("obsidian") or {}).get("status","unknown"),
+       "mp4_updated_with_ai_images":bool(d.get("mp4_updated_with_ai_images",False)),
+       "human_review_required":True})
+     job["metrics"]=metrics
+     job["local_integrations"]=result
+     job["message"]="ローカル連携結果を受信しました。AI画像のMP4反映は別途確認が必要です。"
+    reply(self,200,{"ok":True,"stored":True,"human_review_required":True});return
    if self.path=="/video-engine":
     reply(self,200,{"ok":True,"engine":video_engine_health(),"cost_policy":{"external_saas":False,"paid_execution":False,"human_approval_required":True}});return
    if self.path=="/video-package":
