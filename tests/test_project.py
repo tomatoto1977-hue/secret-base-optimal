@@ -89,6 +89,16 @@ def test_video_ai_quota_fails_closed_and_does_not_use_fixed_script():
     assert "if is_video_request(command) and not (KEY or ALT_TOKEN):" in server
     assert "固定台本で代用せず" in server
 
+def test_ai_rate_limit_diagnostics_classify_quota_without_exposing_response_body():
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert "def classify_ai_http_error(provider, model, error):" in server
+    assert '"quota_exhausted"' in server
+    assert '"rate_limited"' in server
+    assert '"AI_PROVIDER_HTTP_ERROR"' in server
+    assert '"provider_code":safe_code' in server
+    assert 'raise classify_ai_http_error("Gemini",ALT_MODEL,e)' in server
+    assert "課金設定や有料プランは変更していません" in server
+
 def test_bgm_is_musical_and_observable():
     engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
     assert "def _write_bgm(" in engine
