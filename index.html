@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
-<title>秘密基地・最適版 3.8.0</title>
+<title>開発室｜統合制作ワークフロー</title>
 <style>
 :root{--bg:#0f1016;--panel:#191b25;--line:#303444;--text:#f5f3ee;--muted:#9da3b5;--gold:#efbd69;--ok:#65d39a;--bad:#ef7777;--violet:#8d7cff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -15%,#393451,#0f1016 58%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Yu Gothic",sans-serif}.app{max-width:1250px;margin:auto;padding:12px}
@@ -8,9 +8,94 @@ header{display:flex;justify-content:space-between;gap:10px;align-items:center}.b
 .command,.panel{background:rgba(25,27,37,.96);border:1px solid var(--line);border-radius:15px;padding:11px}.command{margin-top:10px}.cmd{display:grid;grid-template-columns:1fr 110px;gap:7px}.cmd input,textarea,select{width:100%;background:#0c0d12;color:var(--text);border:1px solid #3a3e4f;border-radius:9px;padding:10px;outline:none}.btn{border:0;border-radius:9px;font-weight:900;background:linear-gradient(135deg,#7669ef,#9a72ff);color:#fff}.notice{margin-top:7px;color:var(--muted);font-size:8px;line-height:1.5}.grid{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:10px;margin-top:10px}.room{background:linear-gradient(180deg,#f4e4c6,#e5c28b);color:#392b22;border-radius:17px;padding:10px}.room h2{font-size:14px;margin:0}.agents{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}.agent{background:#fff9ed;border:2px solid #d1b58b;border-radius:13px;padding:8px;min-height:120px;position:relative}.agent.work{border-color:#7568ef;box-shadow:0 0 0 3px #7568ef25}.agent.done{border-color:#64a981}.agent.fail{border-color:#d45c5c}.role{font-size:9px;font-weight:900}.name{font-size:8px;color:#66564a}.task{font-size:8px;font-weight:800;margin-top:10px;min-height:24px}.state{font-size:7px;position:absolute;right:6px;top:6px;background:#eee5d9;padding:4px 6px;border-radius:99px}.bar{height:4px;background:#dfd0ba;border-radius:99px;margin-top:8px}.bar i{display:block;height:100%;width:0;background:#7568ef;border-radius:99px}.side{display:flex;flex-direction:column;gap:9px}.panel h3{margin:0 0 7px;font-size:11px}.artifact{white-space:pre-wrap;max-height:360px;overflow:auto;background:#0c0d12;border:1px solid #353949;border-radius:10px;padding:9px;font-size:8px;line-height:1.65}.score{text-align:center;font-size:30px;font-weight:1000;color:var(--gold)}.small{font-size:8px;color:var(--muted);line-height:1.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:6px}.history{max-height:180px;overflow:auto}.history div{padding:6px 0;border-bottom:1px dashed #343746;font-size:8px}.tag{display:inline-block;padding:3px 6px;border-radius:99px;background:#282b38;margin:2px;font-size:7px}.ok{color:var(--ok)}.bad{color:var(--bad)}
 @media(max-width:850px){.grid{grid-template-columns:1fr}.side{order:2}.agents{grid-template-columns:repeat(2,1fr)}}@media(max-width:480px){.app{padding:7px}.agents{gap:5px}.agent{min-height:115px;padding:7px}.brand h1{font-size:17px}}
  .videoTools{margin-top:10px;background:#171923;border:1px solid #4b4962;border-radius:16px;padding:12px}.videoTools h3{margin:0 0 7px;font-size:12px}.editorCards{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.editorCard{background:#0d0f16;border:1px solid #34384a;border-radius:11px;padding:8px}.editorCard a{display:block;color:#fff;text-decoration:none;font-weight:900;font-size:10px}.editorCard span{display:block;color:#aeb4c4;font-size:8px;line-height:1.45;margin-top:4px}.finalWarn{margin-top:8px;padding:8px;border-radius:10px;background:#261d13;color:#ffd27a;font-size:8px;line-height:1.5}@media(max-width:480px){.editorCards{grid-template-columns:1fr}}
- .heroArtifact{margin-top:10px;background:linear-gradient(135deg,#27203c,#171a25);border:2px solid #7c6df0;border-radius:18px;padding:14px}.heroArtifact h2{margin:0 0 6px;font-size:16px}.heroTitle{font-size:19px;font-weight:1000;line-height:1.35}.heroMeta{font-size:9px;color:#c8c3d6;margin-top:5px}.heroBody{margin-top:10px;background:#0b0c11;border-radius:12px;padding:12px;white-space:pre-wrap;max-height:430px;overflow:auto;font-size:10px;line-height:1.7}.research{margin-top:10px;background:#161923;border:1px solid #4b4962;border-radius:16px;padding:12px}.research h2{margin:0 0 7px;font-size:13px}.researchBar{display:grid;grid-template-columns:1fr 150px;gap:7px}.researchResults{margin-top:9px}.researchItem{padding:8px;border-bottom:1px solid #303344;font-size:9px}.themePick{margin-top:9px;padding:10px;border:1px solid #6f61d9;border-radius:11px;background:#201c35}.learningLive{margin-top:8px;padding:8px;border-radius:10px;background:#10131b;font-size:9px;color:#bfc4d2}.makeBtn{width:100%;padding:10px;margin-top:7px}.noticeStrong{color:#fff;font-weight:800}  .undergroundPulse{animation:ugpulse 1.4s ease-in-out infinite}@keyframes ugpulse{50%{opacity:.55}}</style></head><body><div class="app">
-<header><div class="brand"><div class="logo">🏡</div><div><h1>秘密基地・最適版 3.8.0</h1><p>実処理だけを「作業」として表示する再構築版 ｜ 動画制作v3.8</p></div></div><div id="health" class="health">接続確認中…</div></header>
-<section class="heroArtifact"><h2>👀 今回の成果物 — 一目確認</h2><div id="heroTitle" class="heroTitle">まだ成果物はありません</div><div id="heroMeta" class="heroMeta">リサーチまたは制作を実行すると、ここに完成成果物が表示されます。</div><div id="heroBody" class="heroBody">—</div></section><section class="heroArtifact" id="videoPanel" style="display:none;border-color:#65d39a"><h2>🎬 実MP4成果物 — その場で確認</h2><div id="videoStatus" class="heroMeta"></div><video id="videoPreview" controls playsinline preload="metadata" style="width:100%;max-height:620px;border-radius:14px;background:#000;margin-top:8px"></video><a id="videoOpen" target="_blank" rel="noopener" class="btn" style="display:block;text-align:center;padding:10px;margin-top:8px;text-decoration:none">MP4を開く</a></section><section class="videoTools" id="videoTools"><h3>✨ 高品質仕上げ室 — 無料編集サービス</h3><div class="small">このMP4は「動きのある下書き」です。添付参考動画を最低ラインとするため、最終版では<strong>実写/生成ビジュアル・字幕アニメーション・ナレーション・BGM/SFX・トランジション</strong>を追加します。課金操作は行いません。</div><div id="editorCards" class="editorCards" style="margin-top:8px"></div><div class="finalWarn">最終合格条件：9:16 / 1080×1920 / 冒頭2秒フック / 2〜6秒で画面変化 / 読みやすい字幕 / 権利安全素材 / 音声＋BGM・SFX / CTA / ウォーターマークなし。外部サービスで仕上げた最終MP4を人間が確認して初めて「合格」とします。</div></section><section class="videoTools" id="undergroundPanel" style="display:none;border-color:#8d7cff"><h3>🕳️ 地下制作室 — バックグラウンド仕上げ</h3><div id="undergroundStatus" class="small">待機中</div><div style="height:7px;background:#292b39;border-radius:99px;margin-top:8px;overflow:hidden"><i id="undergroundBar" style="display:block;height:100%;width:0;background:linear-gradient(90deg,#7669ef,#9a72ff)"></i></div></section><section class="research"><h2>🔎 いつでもリサーチ → テーマ決定</h2><div class="researchBar"><input id="researchQuery" value="節約 家計 固定費 最新" placeholder="例：節約 固定費 電気代"><button id="researchBtn" class="btn">今すぐリサーチ</button></div><div id="researchResults" class="researchResults small">ここから定期時間を待たずに、好きなタイミングで調査できます。</div><div id="themePick" class="themePick" style="display:none"></div><div id="learningLive" class="learningLive">🧠 学習反映：まだ評価データがありません</div></section><section class="command"><div class="cmd"><input id="command" placeholder="例：TikTok用の動画を作って下さい"><button id="run" class="btn">実行</button></div><div class="notice">⚠️ 実AIが接続されていない場合、成果物を捏造せず停止します。外部投稿・ログイン・金銭操作は行いません。人間承認が必須です。</div><div class="notice"><a href="/c-validation.html" style="color:#9d8cff;font-weight:800">🧪 無課金C検証モードを開く</a>　実AIの利用枠を消費せず、工程・品質・学習反映を検証できます。</div></section>
+ .heroArtifact{margin-top:10px;background:linear-gradient(135deg,#27203c,#171a25);border:2px solid #7c6df0;border-radius:18px;padding:14px}.heroArtifact h2{margin:0 0 6px;font-size:16px}.heroTitle{font-size:19px;font-weight:1000;line-height:1.35}.heroMeta{font-size:9px;color:#c8c3d6;margin-top:5px}.heroBody{margin-top:10px;background:#0b0c11;border-radius:12px;padding:12px;white-space:pre-wrap;max-height:430px;overflow:auto;font-size:10px;line-height:1.7}.research{margin-top:10px;background:#161923;border:1px solid #4b4962;border-radius:16px;padding:12px}.research h2{margin:0 0 7px;font-size:13px}.researchBar{display:grid;grid-template-columns:1fr 150px;gap:7px}.researchResults{margin-top:9px}.researchItem{padding:8px;border-bottom:1px solid #303344;font-size:9px}.themePick{margin-top:9px;padding:10px;border:1px solid #6f61d9;border-radius:11px;background:#201c35}.learningLive{margin-top:8px;padding:8px;border-radius:10px;background:#10131b;font-size:9px;color:#bfc4d2}.makeBtn{width:100%;padding:10px;margin-top:7px}.noticeStrong{color:#fff;font-weight:800}  .undergroundPulse{animation:ugpulse 1.4s ease-in-out infinite}@keyframes ugpulse{50%{opacity:.55}}</style>
+<style>
+/* 開発室 統合ワークフロー */
+.devroom{margin-top:12px;background:#f8f4ed;color:#352c28;border:1px solid #dfd4c8;border-radius:18px;padding:14px;font-family:-apple-system,BlinkMacSystemFont,"Yu Gothic",sans-serif}
+.devroom .eyebrow{font-size:10px;letter-spacing:.16em;color:#8196cb;font-weight:900}
+.devroom h2{font-size:16px;margin:4px 0 9px;color:#392e2b}
+.devroom p,.devroom label{font-size:11px;line-height:1.6}
+.devroom textarea,.devroom input{background:#fff;color:#352c28;border:1px solid #cfc6bd;border-radius:9px;padding:10px;width:100%;font:inherit}
+.devroom .actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.devroom button,.devroom a.appLink{border:1px solid #bdb2a8;border-radius:9px;padding:9px 12px;font-weight:800;font-size:11px;text-decoration:none;cursor:pointer}
+.devroom .primary{background:#7d5a91;color:#fff;border-color:#7d5a91}
+.devroom .stageGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.devroom .stage{background:#fff;border:1px solid #e3d9d0;border-radius:12px;padding:11px;margin-top:8px}
+.devroom .stage h3{font-size:12px;margin:0 0 5px}
+.devroom .stage p{margin:0 0 8px}
+.devroom .apps{display:grid;grid-template-columns:1fr;gap:8px}
+.devroom .app{background:#fff;border:1px solid #e3d9d0;border-radius:11px;padding:10px}
+.devroom .app strong{font-size:12px}
+.devroom .app p{margin:4px 0 8px}
+.devroom .status{font-size:10px;color:#70666d;margin-top:8px;white-space:pre-wrap}
+@media(max-width:520px){.devroom{padding:10px}.devroom .stageGrid{grid-template-columns:1fr}}
+</style>
+</head><body><div class="app">
+<header><div class="brand"><div class="logo">🏡</div><div><h1>開発室</h1><p>統合制作ワークフロー｜テーマ・台本・ビジュアル・編集・品質監査</p></div></div><div id="health" class="health">接続確認中…</div></header>
+<section class="heroArtifact"><h2>👀 今回の成果物 — 一目確認</h2><div id="heroTitle" class="heroTitle">まだ成果物はありません</div><div id="heroMeta" class="heroMeta">リサーチまたは制作を実行すると、ここに完成成果物が表示されます。</div><div id="heroBody" class="heroBody">—</div></section><section class="heroArtifact" id="videoPanel" style="display:none;border-color:#65d39a"><h2>🎬 実MP4成果物 — その場で確認</h2><div id="videoStatus" class="heroMeta"></div><video id="videoPreview" controls playsinline preload="metadata" style="width:100%;max-height:620px;border-radius:14px;background:#000;margin-top:8px"></video><a id="videoOpen" target="_blank" rel="noopener" class="btn" style="display:block;text-align:center;padding:10px;margin-top:8px;text-decoration:none">MP4を開く</a></section><section class="videoTools" id="videoTools"><h3>✨ 高品質仕上げ室 — 無料編集サービス</h3><div class="small">このMP4は「動きのある下書き」です。添付参考動画を最低ラインとするため、最終版では<strong>実写/生成ビジュアル・字幕アニメーション・ナレーション・BGM/SFX・トランジション</strong>を追加します。課金操作は行いません。</div><div id="editorCards" class="editorCards" style="margin-top:8px"></div><div class="finalWarn">最終合格条件：9:16 / 1080×1920 / 冒頭2秒フック / 2〜6秒で画面変化 / 読みやすい字幕 / 権利安全素材 / 音声＋BGM・SFX / CTA / ウォーターマークなし。外部サービスで仕上げた最終MP4を人間が確認して初めて「合格」とします。</div></section><section class="videoTools" id="undergroundPanel" style="display:none;border-color:#8d7cff"><h3>🕳️ 地下制作室 — バックグラウンド仕上げ</h3><div id="undergroundStatus" class="small">待機中</div><div style="height:7px;background:#292b39;border-radius:99px;margin-top:8px;overflow:hidden"><i id="undergroundBar" style="display:block;height:100%;width:0;background:linear-gradient(90deg,#7669ef,#9a72ff)"></i></div></section><section class="research"><h2>🔎 いつでもリサーチ → テーマ決定</h2><div class="researchBar"><input id="researchQuery" value="節約 家計 固定費 最新" placeholder="例：節約 固定費 電気代"><button id="researchBtn" class="btn">今すぐリサーチ</button></div><div id="researchResults" class="researchResults small">ここから定期時間を待たずに、好きなタイミングで調査できます。</div><div id="themePick" class="themePick" style="display:none"></div><div id="learningLive" class="learningLive">🧠 学習反映：まだ評価データがありません</div></section>
+<section class="devroom" id="devroomWorkflow">
+ <div class="eyebrow">01 · THEME & RESEARCH</div>
+ <h2>🔎 開発室｜テーマ決定</h2>
+ <p>ObsidianのVaultをブラウザーから直接読み取ることはできないため、対象メモを貼り付けて調査します。</p>
+ <label for="devroomNotes">テーマ候補・Obsidianメモ</label>
+ <textarea id="devroomNotes" rows="3" placeholder="Obsidianのメモや調べたいテーマを貼り付け"></textarea>
+ <div class="actions"><button id="devroomObsidian">🟣 Obsidianを開く</button><button id="devroomResearch">🔎 リサーチへ引き継ぐ</button><button class="primary" id="devroomTheme">✓ テーマ決定</button></div>
+ <div class="status" id="devroomThemeStatus">状態：テーマ未選択</div>
+</section>
+<section class="devroom" id="devroomProduction">
+ <div class="eyebrow">02 · START PRODUCTION</div><h2>🎬 制作を開始</h2>
+ <p>決定したテーマを使い、台本・ビジュアル・音声・編集の指示をまとめます。</p>
+ <button class="primary" id="devroomStart" style="width:100%;padding:14px">🎬 初回動画を作る</button>
+ <div class="status" id="devroomProductionStatus">制作開始前です。ボタンは指示を既存の統括入力へ渡します。実際の生成完了は別途確認してください。</div>
+</section>
+<section class="devroom" id="devroomStages">
+ <div class="eyebrow">03–06 · PRODUCTION ASSETS</div><h2>🧩 制作工程と成果物</h2>
+ <div class="stageGrid">
+  <div class="stage"><h3>📝 台本・ナレーション</h3><p>Claude Code用の台本作成・事実確認・自然な語り口・ナレーション準備。</p><button data-stage="script">台本・ナレーション指示</button></div>
+  <div class="stage"><h3>🖼️ ビジュアル</h3><p>台本の各場面に一致する映像素材・プロンプトを準備。</p><button data-stage="visual">ビジュアル制作指示</button></div>
+  <div class="stage"><h3>🎼 音楽制作（BGM）</h3><p>権利面に配慮したBGM、音量バランス、ナレーションとの干渉を確認。</p><button data-stage="music">BGM制作指示</button></div>
+  <div class="stage"><h3>🎞️ 完成動画 → 動画確認</h3><p>MP4の再生、字幕・音声・画面比率を確認。公開はしません。</p><button data-stage="review">動画確認指示</button></div>
+  <div class="stage"><h3>🔍 品質監査</h3><p>事実、権利、安全、音量、字幕、テンポを点検。</p><button data-stage="audit">品質監査指示</button></div>
+  <div class="stage"><h3>🛠️ ブラッシュアップ</h3><p>監査結果に基づいて修正・再出力。</p><button data-stage="polish">改善・再制作指示</button></div>
+ </div>
+</section>
+<section class="devroom" id="devroomApps">
+ <div class="eyebrow">07 · EXTERNAL APP ASSIST</div><h2>📱 外部編集アプリ連携</h2>
+ <p>無料優先。公式サイトを開く／用途別指示をコピーする方式です。アプリの直接自動操作や自動投稿は行いません。</p>
+ <div class="apps">
+  <div class="app"><strong>Alight Motion</strong><p>キーフレーム、動き、文字アニメーション、画面演出。</p><div class="actions"><a class="appLink" href="https://alightmotion.com/" target="_blank" rel="noopener">公式サイト</a><button data-copyapp="alight">指示をコピー</button></div></div>
+  <div class="app"><strong>Vrew</strong><p>ナレーション・字幕生成、字幕修正、音声と字幕のタイミング調整。</p><div class="actions"><a class="appLink" href="https://vrew.ai/" target="_blank" rel="noopener">公式サイト</a><button data-copyapp="vrew">指示をコピー</button></div></div>
+  <div class="app"><strong>Edits</strong><p>ショート動画編集、カット・タイミング調整、最終プレビュー。</p><div class="actions"><a class="appLink" href="https://about.instagram.com/features/edits" target="_blank" rel="noopener">公式案内</a><button data-copyapp="edits">指示をコピー</button></div></div>
+ </div><div class="status" id="devroomAppStatus">アプリ操作はユーザー確認のもとで行ってください。</div>
+</section>
+<section class="devroom" id="devroomMemory"><div class="eyebrow">08 · CONTINUOUS MEMORY</div><h2>🧠 継続記憶</h2><p>今回のテーマ、台本、使用素材、監査結果、改善点を次回制作に引き継ぐためのメモを作成します。</p><textarea id="devroomMemoryText" rows="3" placeholder="次回に引き継ぐ内容を記入"></textarea><div class="actions"><button class="primary" id="devroomSaveMemory">継続記憶メモを保存（この端末）</button></div><div class="status" id="devroomMemoryStatus">保存前です。これはブラウザー内保存で、サーバーの学習DBへの保存とは別です。</div></section>
+<script>
+(function(){
+const $=id=>document.getElementById(id); let theme='';
+const prompts={
+script:'Claude Code向け：選定テーマに沿い、45〜60秒の自然な日本語ナレーション台本を作成。冒頭フック、場面ごとのセリフ、事実確認、出典候補、字幕文を分離し、未確認情報は断定しない。テーマ：',
+visual:'台本に完全一致する場面別ビジュアル計画を作成。各場面に画面内容・動き・構図・生成プロンプトを付ける。画像内に文字を生成しない。権利安全なオリジナル表現。テーマ：',
+music:'動画用BGM指示：ナレーションを邪魔しない音量、場面の緊張と解放、使用権が確認できる音源のみ。無断利用や有料契約をしない。テーマ：',
+review:'完成MP4を実際に再生し、縦9:16、音声、字幕タイミング、黒画面、音切れ、画面切替、冒頭フックを確認。未再生なら未検証と記録。テーマ：',
+audit:'品質監査：台本の事実性、権利・人物・ロゴ、字幕、音声、BGM、テンポ、動画ファイルの再生可否を項目別に合否判定。テーマ：',
+polish:'品質監査で不合格の項目だけを修正し、再出力後に再検査。未実行の作業を完了扱いにしない。テーマ：'
+};
+const appPrompts={
+alight:'Alight Motion用指示：縦9:16ショート動画。台本に沿ってキーフレーム、字幕アニメーション、自然なトランジションを追加。無料範囲を優先し、課金しない。テーマ：',
+vrew:'Vrew用指示：日本語ナレーションと字幕を照合し、誤字・字幕タイミング・読みやすさを修正。無料範囲を優先し、課金しない。テーマ：',
+edits:'Edits用指示：縦9:16ショート動画を編集。不要な間をカットし、場面転換、字幕、音声とBGMのバランスを確認。投稿は行わず、課金しない。テーマ：'
+};
+function setCommand(t){const input=$('command'); if(input){input.value=t+(theme?' '+theme:'');input.scrollIntoView({behavior:'smooth',block:'center'});$('devroomProductionStatus').textContent='指示を統括入力欄へ転送しました。内容を確認してから「実行」を押してください。';}}
+$('devroomObsidian').onclick=()=>{window.location.href='obsidian://open';};
+$('devroomResearch').onclick=()=>{const q=$('devroomNotes').value.trim();if($('researchQuery'))$('researchQuery').value=q||'神話 ショート動画 テーマ';$('researchQuery')?.scrollIntoView({behavior:'smooth',block:'center'});$('devroomThemeStatus').textContent='リサーチ欄へ引き継ぎました。リサーチボタンを押して結果を確認してください。';};
+$('devroomTheme').onclick=()=>{theme=$('devroomNotes').value.trim();$('devroomThemeStatus').textContent=theme?'採用テーマ（メモから設定）：'+theme:'テーマが空です。メモを入力してください。';if(theme&&$('researchQuery'))$('researchQuery').value=theme;};
+$('devroomStart').onclick=()=>{if(!theme)theme=$('devroomNotes').value.trim();setCommand('開発室制作フローを開始。テーマ：'+(theme||'リサーチで決めたテーマ')+'。まず台本・場面別ビジュアル計画・音声/BGM指示を作り、実成果物と品質監査結果を返す。自動投稿・課金は禁止。');};
+document.querySelectorAll('[data-stage]').forEach(b=>b.onclick=()=>setCommand(prompts[b.dataset.stage]||'制作工程を確認：'));
+document.querySelectorAll('[data-copyapp]').forEach(b=>b.onclick=async()=>{const t=(appPrompts[b.dataset.copyapp]||'')+(theme||$('devroomNotes').value.trim()||'（テーマ未設定）');try{await navigator.clipboard.writeText(t);$('devroomAppStatus').textContent='指示をコピーしました。対象アプリを開いて貼り付けてください。'}catch(e){$('devroomAppStatus').textContent=t;}});
+$('devroomSaveMemory').onclick=()=>{const value={theme:theme||$('devroomNotes').value.trim(),memo:$('devroomMemoryText').value,created_at:new Date().toISOString()};try{const arr=JSON.parse(localStorage.getItem('devroom_memory_v1')||'[]');arr.push(value);localStorage.setItem('devroom_memory_v1',JSON.stringify(arr.slice(-100)));$('devroomMemoryStatus').textContent='この端末のブラウザー内に保存しました（'+arr.length+'件）。サーバーDB保存ではありません。';}catch(e){$('devroomMemoryStatus').textContent='保存に失敗：'+e;}};
+})();
+</script>
+<section class="command"><div class="cmd"><input id="command" placeholder="例：TikTok用の動画を作って下さい"><button id="run" class="btn">実行</button></div><div class="notice">⚠️ 実AIが接続されていない場合、成果物を捏造せず停止します。外部投稿・ログイン・金銭操作は行いません。人間承認が必須です。</div><div class="notice"><a href="/c-validation.html" style="color:#9d8cff;font-weight:800">🧪 無課金C検証モードを開く</a>　実AIの利用枠を消費せず、工程・品質・学習反映を検証できます。</div></section>
 <div class="grid"><main class="room"><h2>🪵 実行エージェント</h2><div class="agents" id="agents"></div></main>
 <aside class="side">
 <section class="panel"><h3>📦 実成果物</h3><div id="artifactMeta" class="small">まだ実行されていません</div><pre id="artifact" class="artifact">—</pre></section>
