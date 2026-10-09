@@ -71,7 +71,7 @@ def queue_run_job(command, learning):
 def queue_video_job(command, artifact, run_id):
     job_id=str(uuid.uuid4())[:12]
     VIDEO_JOBS[job_id]={"job_id":job_id,"run_id":run_id,"status":"queued","stage":"underground_queue","progress":0,"message":"地下制作室で動画仕上げを開始します。","created_at":datetime.now(timezone.utc).isoformat(),
-        "metrics":{"script_status":"pending","scene_plan_status":"pending","ai_images_expected":12,"ai_images_created":0,"vector_scenes_created":0,"narration_status":"pending","bgm_status":"pending","render_status":"pending","mp4_validation_status":"pending","obsidian_export_status":"pending","human_review_required":True}}
+        "metrics":{"script_status":"pending","scene_plan_status":"pending","ai_images_expected":12,"ai_images_created":0,"ai_image_provider_status":"not_configured","claude_code_status":"not_connected","vector_scenes_created":0,"narration_status":"pending","bgm_status":"pending","render_status":"pending","mp4_validation_status":"pending","obsidian_export_status":"pending","human_review_required":True}}
     def worker():
         job=VIDEO_JOBS.get(job_id)
         if not job:return
