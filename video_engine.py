@@ -47,21 +47,25 @@ def _clean(text):
     return " ".join(text.split())
 
 def _scene_text(artifact, command):
-    raw = _clean(artifact)
-    raw = re.sub(r"https?://\\S+|\\b[\\w.-]+\\.onrender\\.com\\b", "", raw)
-    risky_terms = [
-        "ドラゴンズドグマ", "KINGDOM HEARTS", "キングダムハーツ",
-        "ドラゴンクエスト", "ポケットモンスター", "ポケモン",
-        "鬼滅の刃", "ONE PIECE", "ワンピース", "呪術廻戦",
-        "進撃の巨人", "名探偵コナン", "マリオ", "ゼルダの伝説"
-    ]
-    for term in risky_terms:
-        raw = raw.replace(term, "オリジナルテーマ")
-    if not raw:
-        raw = _clean(command)
-    chunks = [x.strip(" -•・【】") for x in textwrap.wrap(raw, width=36, break_long_words=False, break_on_hyphens=False) if x.strip()]
-    if not chunks:
-        chunks = ["秘密基地 最適版"]
+    """Build visual beats only from the dedicated spoken script, never from a production brief."""
+    narration = _extract_narration(artifact)
+    if not narration:
+        return []
+    sentences = [x.strip() for x in re.split(r"(?<=[。！？!?])\s*|\n+", narration) if x.strip()]
+    chunks = []
+    current = ""
+    for sentence in sentences:
+        if len(current) + len(sentence) <= 36:
+            current += sentence
+        else:
+            if current:
+                chunks.append(current)
+            while len(sentence) > 36:
+                chunks.append(sentence[:36])
+                sentence = sentence[36:]
+            current = sentence
+    if current:
+        chunks.append(current)
     return chunks[:12]
 
 def _display_lines(text, max_chars=18, max_lines=3):
@@ -168,6 +172,44 @@ def _render_narration(text, output_path):
         return {"ok":True,"voice":TTS_VOICE,"path":str(output_path)}
     except Exception as e:
         return {"ok":False,"reason":"tts_exception","error":str(e)}
+
+def _write_bgm(path, duration, sample_rate=22050):
+    """Create an original instrumental bed with chord pads, bass and arpeggio."""
+    import math, struct, wave
+    duration = max(1.0, float(duration))
+    beat = 60.0 / 96.0
+    chords = [
+        (261.63, 329.63, 392.00, 130.81),
+        (220.00, 261.63, 329.63, 110.00),
+        (174.61, 220.00, 261.63, 87.31),
+        (196.00, 246.94, 293.66, 98.00),
+    ]
+    total_samples = int(duration * sample_rate)
+    frames = bytearray()
+    for n in range(total_samples):
+        t = n / sample_rate
+        beat_index = int(t / beat)
+        chord = chords[(beat_index // 4) % len(chords)]
+        beat_phase = (t % beat) / beat
+        pad = sum(math.sin(2.0 * math.pi * freq * t) for freq in chord[:3]) / 3.0
+        bass_env = max(0.0, 1.0 - beat_phase * 2.6)
+        bass = math.sin(2.0 * math.pi * chord[3] * t) * bass_env
+        arp_env = max(0.0, 1.0 - beat_phase * 3.8)
+        arp = math.sin(2.0 * math.pi * chord[beat_index % 4] * t) * arp_env
+        pulse = 0.82 + 0.18 * math.sin(2.0 * math.pi * (t / (beat * 4)))
+        fade_in = min(1.0, t / 1.2)
+        fade_out = min(1.0, max(0.0, (duration - t) / 2.0))
+        value = (0.20 * pad + 0.13 * bass + 0.075 * arp) * pulse * fade_in * fade_out
+        sample = max(-32767, min(32767, int(value * 32767)))
+        frames.extend(struct.pack("<h", sample))
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(frames)
+    return {"ok": Path(path).exists() and Path(path).stat().st_size > 1000,
+            "path": str(path), "duration_seconds": round(duration, 2),
+            "type": "locally_synthesized_instrumental_bgm", "sample_rate": sample_rate}
 
 def render(package, output_path=None):
     status = engine_status()
@@ -418,24 +460,22 @@ def render(package, output_path=None):
         concat = work / "concat.txt"
         concat.write_text("".join(f"file '{p}'\n" for p in segment_files), encoding="utf-8")
 
-        # Rights-safe synthetic BGM. No per-scene cue is generated; this
-        # intentionally removes the repetitive "pip" heard at scene changes.
+        # Original music bed: chord progression, bass pulse and arpeggio (no external media).
         audio = work / "audio.wav"
-        ap=subprocess.run([
-            "ffmpeg","-y",
-            "-f","lavfi","-i",f"sine=frequency=196:sample_rate=48000:duration={total}",
-            "-f","lavfi","-i",f"sine=frequency=294:sample_rate=48000:duration={total}",
-            "-f","lavfi","-i",f"sine=frequency=392:sample_rate=48000:duration={total}",
-            "-filter_complex","[0:a]volume=0.040[a0];[1:a]volume=0.025[a1];[2:a]volume=0.016[a2];[a0][a1][a2]amix=inputs=3:normalize=0,afade=t=in:st=0:d=1.0,afade=t=out:st="+str(max(0,total-2))+":d=2",
-            "-c:a","pcm_s16le",str(audio)
-        ],capture_output=True,text=True,timeout=60)
-        if ap.returncode!=0:
-            return {"ok":False,"status":"audio_render_error","engine":status,"error":ap.stderr[-1000:]}
+        bgm_result = _write_bgm(audio, total)
+        if not bgm_result.get("ok"):
+            return {"ok":False,"status":"bgm_generation_failed","engine":status}
 
         narration = work / "narration.mp3"
-        if not narration_text:
-            narration_text = _make_narration_text(command,chunks,title)
+        if len(narration_text) < 80:
+            return {"ok":False,"status":"narration_script_missing",
+                    "error":"独立した【ナレーション】ブロック（80文字以上）がありません。企画書を読み上げる動画は生成せず、安全停止しました。",
+                    "script_status":"failed","ai_images_generated":False}
         tts_result = _render_narration(narration_text,narration)
+        if not tts_result.get("ok"):
+            return {"ok":False,"status":"narration_generation_failed",
+                    "error":tts_result.get("error") or tts_result.get("reason"),
+                    "script_status":"validated","narration_status":"failed"}
 
         if tts_result.get("ok"):
             p=subprocess.run([
@@ -520,7 +560,10 @@ def render(package, output_path=None):
                 {"name":"Canva","url":"https://www.canva.com/video-editor/","purpose":"任意の人間仕上げ。テンプレート・字幕・アニメーション"},
                 {"name":"Adobe Express","url":"https://www.adobe.com/jp/express/feature/video/editor","purpose":"任意の人間仕上げ。テンプレート・音声・アニメーション"}
             ],
-            "assets":"original vector illustrations generated locally; no external media",
+            "assets":"original vector illustrations generated locally; AI image generation is not configured in this service",
+            "ai_images_generated":False,
+            "bgm_details":bgm_result,
+            "narration_script_source":"dedicated_narration_block",
             "quality":"reference-driven 9:16 render with original visual scenes, motion, captions, neural narration, synthetic BGM/SFX and technical validation",
             "editor_handoff":editor_handoff,
             "visual_check":visual
@@ -551,7 +594,7 @@ def self_test():
     status=engine_status()
     if not status["available"]:
         return {"ok":False,"status":"ffmpeg_unavailable","engine":status}
-    pkg={"command":"テスト動画","production_spec":"完成成果物。9:16。1080x1920。冒頭2秒フック。2〜6秒。白文字。黒フチ。CTA。","test_mode":True}
+    pkg={"command":"テスト動画","production_spec":"【ナレーション】これは動画エンジンの自己検査用に用意した自然な日本語の話し言葉です。画面に表示する企画書や制作指示とは別の文章で、短い説明をして、最後に今日できる行動を一つ提案します。まずは内容が自然に聞こえるかを確認し、問題があれば修正してから次の工程へ進みましょう。保存してあとで見直してください。","test_mode":True}
     path=str(VIDEO_ROOT / ("selftest_"+uuid.uuid4().hex[:8]+".mp4"))
     r=render(pkg,path)
     if r.get("ok"):
