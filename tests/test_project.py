@@ -23,7 +23,7 @@ def test_c_validation_is_not_real_mp4():
 
 def test_server_safety_controls():
     src=(ROOT/"server.py").read_text(encoding="utf-8")
-    assert 'VERSION="3.8.1"' in src
+    assert 'VERSION="3.8.2"' in src
     assert "COPYRIGHT_TOPIC_TERMS" in src
     assert "SELF_TEST_TOKEN" in src
     assert "RUN_SMOKE_ON_START" in src
@@ -73,14 +73,53 @@ def test_video_jobs_are_serialized_and_logged():
     assert "VIDEO_RENDER_FAILED" in server
     assert "VIDEO_RENDER_EXCEPTION" in server
 
-def test_tts_failure_does_not_block_video_fallback():
+def test_narration_failure_stops_instead_of_reading_the_brief():
     engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
     assert '"--retries","1","--timeout","12"' in engine
     assert '"stderr":(install.stderr or "")[-1800:]' in engine
     assert 'return {"ok":False,"reason":"edge_tts_unavailable"}' in engine
-    assert '"audio_mode":("neural_narration_plus_bgm" if tts_result.get("ok") else "synthetic_bgm_fallback")' in engine
+    assert '"status":"narration_script_missing"' in engine
+    assert '"status":"narration_generation_failed"' in engine
+    assert "if not narration_text:" not in engine
+
+def test_video_ai_quota_fails_closed_and_does_not_use_fixed_script():
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert "VIDEO_AI_RATE_LIMIT_SAFE_STOP" in server
+    assert "動画制作を安全停止しました" in server
+    assert "if is_video_request(command) and not (KEY or ALT_TOKEN):" in server
+    assert "固定台本で代用せず" in server
+
+def test_bgm_is_musical_and_observable():
+    engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
+    assert "def _write_bgm(" in engine
+    assert "locally_synthesized_instrumental_bgm" in engine
+    assert "bgm_details" in engine
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert '"bgm_status"' in server
+
+def test_obisidian_export_is_explicit_about_vault_sync():
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    assert "def write_obsidian_note(" in server
+    assert 'self.path.startswith("/obsidian/")' in server
+    assert "downloadable_markdown_not_vault_sync" in server
+    assert "Vaultへの自動同期は未接続" in server
+
+def test_progress_metrics_do_not_claim_ai_images_exist():
+    server=(ROOT/"server.py").read_text(encoding="utf-8")
+    engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
+    assert '"ai_images_created":0' in server
+    assert 'finish["ai_images_generated"]=False' in server
+    assert '"ai_images_generated":False' in engine
 
 def test_video_generation_keeps_run_locked_until_background_job_finishes():
     html=(ROOT/"index.html").read_text(encoding="utf-8")
     assert "await pollVideoJob(video.job_id)" in html
     assert "動画生成が停止しました：" in html
+
+def test_ui_displays_real_stage_metrics_and_obsidian_export():
+    html=(ROOT/"index.html").read_text(encoding="utf-8")
+    assert 'id="productionMetrics"' in html
+    assert "AI生成画像:" in html
+    assert "MP4検査:" in html
+    assert 'id="obsidianExport"' in html
+    assert ".join('\\n')" in html
