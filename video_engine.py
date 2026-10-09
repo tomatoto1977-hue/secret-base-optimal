@@ -90,14 +90,21 @@ def _ensure_edge_tts():
         return True
     except Exception:
         try:
-            subprocess.run(
-                [sys.executable,"-m","pip","install",f"edge-tts=={TTS_VERSION}","--quiet"],
-                capture_output=True,text=True,timeout=120,check=True
+            install = subprocess.run(
+                [sys.executable,"-m","pip","install",f"edge-tts=={TTS_VERSION}","--quiet","--retries","1","--timeout","12"],
+                capture_output=True,text=True,timeout=45
             )
+            if install.returncode != 0:
+                print("TTS_INSTALL_ERROR",json.dumps({
+                    "returncode":install.returncode,
+                    "stderr":(install.stderr or "")[-1800:],
+                    "stdout":(install.stdout or "")[-600:]
+                },ensure_ascii=False),flush=True)
+                return False
             import edge_tts  # noqa: F401
             return True
         except Exception as e:
-            print("TTS_INSTALL_ERROR",str(e)[:500],flush=True)
+            print("TTS_INSTALL_ERROR",json.dumps({"error":str(e)[:1000],"type":type(e).__name__},ensure_ascii=False),flush=True)
             return False
 
 def _extract_narration(artifact):
