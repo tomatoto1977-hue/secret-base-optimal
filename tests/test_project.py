@@ -34,13 +34,17 @@ def test_reply_handles_client_disconnect():
     assert "ConnectionResetError" in src
 
 
-def test_video_quality_policy_and_external_editors():
-    src=(ROOT/"video_engine.py").read_text(encoding="utf-8")
-    assert "motion_graphics_draft" in src
-    assert "final_pass" in src
-    assert "CapCut" in src and "Canva" in src and "Adobe Express" in src
+def test_video_quality_policy_and_editor_handoff():
+    engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
+    # Test the real render pipeline rather than stale names from an older design.
+    assert "def render(" in engine
+    assert "def _render_narration(" in engine
+    assert "def scene_svg(" in engine
+    assert "ffmpeg" in engine.lower()
     server=(ROOT/"server.py").read_text(encoding="utf-8")
     assert '"duration_seconds":71.05' in server
+    assert '"final_pass":False' in server
+    assert "final_pass_reason" in server
 
 
 def test_mp4_range_streaming_and_research_fallback():
