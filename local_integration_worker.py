@@ -89,6 +89,67 @@ def generate_images(outdir, prompt_text, count):
             return {"status":"partial_failure" if images else "failed","reason":str(exc)[:500],"images":images}
     return {"status":"generated" if images else "failed","images":images,"count":len(images)}
 
+def compose_ai_images_video(task, outdir, image_result):
+    """Create a local 9:16 MP4 from generated images and original video audio."""
+    image_names = [name for name in image_result.get("images", []) if (outdir / name).is_file()]
+    video_url = str(task.get("video_url") or "").strip()
+    ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
+    if not image_names:
+        return {"status": "skipped_no_images", "mp4_updated_with_ai_images": False}
+    if not video_url.startswith("https://"):
+        return {"status": "skipped_video_url_missing", "mp4_updated_with_ai_images": False}
+    if not ffmpeg or not ffprobe:
+        return {"status": "ffmpeg_unavailable", "mp4_updated_with_ai_images": False}
+    base, slideshow, final = outdir / "base_video.mp4", outdir / "ai_image_video.mp4", outdir / "secret_base_ai_images.mp4"
+    try:
+        req = urllib.request.Request(video_url, headers={"User-Agent": "SecretBaseLocalWorker/1.0"})
+        with urllib.request.urlopen(req, timeout=120) as response, base.open("wb") as dst:
+            shutil.copyfileobj(response, dst)
+        if not base.is_file() or base.stat().st_size < 10000:
+            return {"status": "base_video_download_invalid", "mp4_updated_with_ai_images": False}
+        probe = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", str(base)], capture_output=True, text=True, timeout=30)
+        if probe.returncode:
+            return {"status": "base_video_probe_failed", "mp4_updated_with_ai_images": False}
+        info = json.loads(probe.stdout)
+        duration = float(info.get("format", {}).get("duration") or 0)
+        if duration < 1 or not any(s.get("codec_type") == "audio" for s in info.get("streams", [])):
+            return {"status": "base_video_audio_or_duration_missing", "mp4_updated_with_ai_images": False}
+        per_image = duration / len(image_names)
+        concat = outdir / "ai_images_concat.txt"
+        lines = []
+        for name in image_names:
+            path = str((outdir / name).resolve()).replace("\\", "/")
+            lines.extend(["file '" + path + "'", "duration " + format(per_image, ".6f")])
+        last = str((outdir / image_names[-1]).resolve()).replace("\\", "/")
+        lines.append("file '" + last + "'")
+        concat.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        render = subprocess.run([ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat), "-vf",
+            "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,format=yuv420p",
+            "-t", format(duration, ".3f"), "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-an", "-movflags", "+faststart", str(slideshow)],
+            capture_output=True, text=True, timeout=600)
+        if render.returncode or not slideshow.is_file() or slideshow.stat().st_size < 10000:
+            return {"status": "image_slideshow_render_failed", "mp4_updated_with_ai_images": False, "reason": (render.stderr or "")[-800:]}
+        mux = subprocess.run([ffmpeg, "-y", "-i", str(slideshow), "-i", str(base), "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "copy", "-c:a", "aac", "-af", "apad", "-shortest", "-movflags", "+faststart", str(final)],
+            capture_output=True, text=True, timeout=300)
+        if mux.returncode or not final.is_file() or final.stat().st_size < 10000:
+            return {"status": "ai_image_audio_mux_failed", "mp4_updated_with_ai_images": False, "reason": (mux.stderr or "")[-800:]}
+        verify = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height", "-of", "json", str(final)], capture_output=True, text=True, timeout=30)
+        if verify.returncode:
+            return {"status": "ai_image_mp4_validation_failed", "mp4_updated_with_ai_images": False}
+        result = json.loads(verify.stdout)
+        streams = result.get("streams", [])
+        video = next((s for s in streams if s.get("codec_type") == "video"), {})
+        has_audio = any(s.get("codec_type") == "audio" for s in streams)
+        output_duration = float(result.get("format", {}).get("duration") or 0)
+        if video.get("width") != 1080 or video.get("height") != 1920 or not has_audio or output_duration < duration * 0.95:
+            return {"status": "ai_image_mp4_validation_failed", "mp4_updated_with_ai_images": False}
+        return {"status": "generated_and_validated", "mp4_updated_with_ai_images": True,
+                "filename": final.name, "image_count": len(image_names), "duration_seconds": round(output_duration, 2)}
+    except Exception as exc:
+        return {"status": "ai_image_composition_failed", "mp4_updated_with_ai_images": False, "reason": str(exc)[:500]}
+
+
 def write_vault(task, script_result, image_result):
     if not str(VAULT) or not VAULT.is_dir():
         return {"status":"vault_path_missing","reason":"Set OBSIDIAN_VAULT_PATH to an existing vault"}
@@ -123,9 +184,11 @@ def handle(task):
     script=run_claude(command,artifact,outdir)
     prompt=(outdir/"narration_script.txt").read_text(encoding="utf-8") if script.get("path") else artifact
     images=generate_images(outdir,prompt,MAX_IMAGES)
-    vault=write_vault({**task,"video_url":task.get("video_url")},script,images)
-    result={"job_id":task.get("job_id"),"claude":script,"images":images,"obsidian":vault,
-      "local_artifact_dir":str(outdir),"human_review_required":True,"mp4_updated_with_ai_images":False}
+    composition=compose_ai_images_video(task,outdir,images)
+    task_for_vault={**task,"video_url":task.get("video_url"),"ai_image_video":composition}
+    vault=write_vault(task_for_vault,script,images)
+    result={"job_id":task.get("job_id"),"claude":script,"images":images,"ai_image_video":composition,"obsidian":vault,
+      "human_review_required":True,"mp4_updated_with_ai_images":composition.get("mp4_updated_with_ai_images",False)}
     request("/integration/result","POST",result)
     print(json.dumps(result,ensure_ascii=False))
 
