@@ -551,10 +551,16 @@ class Handler(BaseHTTPRequestHandler):
    if self.path=="/research":
     query=str(d.get("query","")).strip()
     if not query: raise ValueError("research query required")
-    items=research_news(query,10)
+    source_warning=None
+    try:
+     items=research_news(query,10)
+    except (urllib.error.URLError,TimeoutError,ET.ParseError,ValueError) as e:
+     items=[]
+     source_warning="ニュース取得元が一時的に応答していません。最新記事は未取得です。一般候補を表示します。"
+     print("RESEARCH_SOURCE_ERROR",json.dumps({"error":str(e)[:300]},ensure_ascii=False),flush=True)
     learning=d.get("learning",[]) if isinstance(d.get("learning",[]),list) else []
     selected=choose_research_theme(query,items,learning)
-    reply(self,200,{"ok":True,"query":query,"items":items,"selected_theme":selected,"learning_applied":bool(learning),"learning_effects":learning_effects(learning)})
+    reply(self,200,{"ok":True,"query":query,"items":items,"selected_theme":selected,"learning_applied":bool(learning),"learning_effects":learning_effects(learning),"source_warning":source_warning})
     return
    if self.path=="/evaluate":
     if not d.get("run_id"):raise ValueError("対象runがありません")
