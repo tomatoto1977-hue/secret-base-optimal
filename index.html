@@ -70,7 +70,7 @@ header{display:flex;justify-content:space-between;gap:10px;align-items:center}.b
 </section>
 <section class="devroom" id="devroomMemory"><div class="eyebrow">08 · CONTINUOUS MEMORY</div><h2>🧠 継続記憶</h2><p>今回のテーマ、台本、使用素材、監査結果、改善点を次回制作に引き継ぐためのメモを作成します。</p><textarea id="devroomMemoryText" rows="3" placeholder="次回に引き継ぐ内容を記入"></textarea><div class="actions"><button class="primary" id="devroomSaveMemory">継続記憶メモを保存（この端末）</button></div><div class="status" id="devroomMemoryStatus">保存前です。これはブラウザー内保存で、サーバーの学習DBへの保存とは別です。</div></section>
 <script>
-(function(){
+document.addEventListener('DOMContentLoaded',function(){
 const $=id=>document.getElementById(id); let theme='';
 const prompts={
 script:'Claude Code向け：選定テーマに沿い、45〜60秒の自然な日本語ナレーション台本を作成。冒頭フック、場面ごとのセリフ、事実確認、出典候補、字幕文を分離し、未確認情報は断定しない。テーマ：',
@@ -93,7 +93,7 @@ $('devroomStart').onclick=()=>{if(!theme)theme=$('devroomNotes').value.trim();se
 document.querySelectorAll('[data-stage]').forEach(b=>b.onclick=()=>setCommand(prompts[b.dataset.stage]||'制作工程を確認：'));
 document.querySelectorAll('[data-copyapp]').forEach(b=>b.onclick=async()=>{const t=(appPrompts[b.dataset.copyapp]||'')+(theme||$('devroomNotes').value.trim()||'（テーマ未設定）');try{await navigator.clipboard.writeText(t);$('devroomAppStatus').textContent='指示をコピーしました。対象アプリを開いて貼り付けてください。'}catch(e){$('devroomAppStatus').textContent=t;}});
 $('devroomSaveMemory').onclick=()=>{const value={theme:theme||$('devroomNotes').value.trim(),memo:$('devroomMemoryText').value,created_at:new Date().toISOString()};try{const arr=JSON.parse(localStorage.getItem('devroom_memory_v1')||'[]');arr.push(value);localStorage.setItem('devroom_memory_v1',JSON.stringify(arr.slice(-100)));$('devroomMemoryStatus').textContent='この端末のブラウザー内に保存しました（'+arr.length+'件）。サーバーDB保存ではありません。';}catch(e){$('devroomMemoryStatus').textContent='保存に失敗：'+e;}};
-})();
+});
 </script>
 <section class="command"><div class="cmd"><input id="command" placeholder="例：TikTok用の動画を作って下さい"><button id="run" class="btn">実行</button></div><div class="notice">⚠️ 実AIが接続されていない場合、成果物を捏造せず停止します。外部投稿・ログイン・金銭操作は行いません。人間承認が必須です。</div><div class="notice"><a href="/c-validation.html" style="color:#9d8cff;font-weight:800">🧪 無課金C検証モードを開く</a>　実AIの利用枠を消費せず、工程・品質・学習反映を検証できます。</div></section>
 <div class="grid"><main class="room"><h2>🪵 実行エージェント</h2><div class="agents" id="agents"></div></main>
