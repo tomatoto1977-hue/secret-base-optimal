@@ -9,6 +9,9 @@ KEY=os.environ.get("OPENAI_"+"API_"+"KEY","").strip()
 ALT_MODEL=os.environ.get("ALT_MODEL","gemini-3.7-flash")
 ALT_TOKEN=os.environ.get("ALT_"+"MODEL_"+"TOKEN","").strip()
 SELF_TEST_TOKEN=os.environ.get("SELF_TEST_TOKEN","").strip()
+INTEGRATION_BRIDGE_TOKEN=os.environ.get("INTEGRATION_BRIDGE_TOKEN","").strip()
+INTEGRATION_QUEUE=[]
+INTEGRATION_RESULTS={}
 VERSION="3.8.2"
 RUN_SMOKE_ON_START=os.environ.get("RUN_SMOKE_ON_START","false").lower()=="true"
 VIDEO_ROOT=Path(os.environ.get("VIDEO_OUTPUT_DIR","/tmp/secret-base-videos")); VIDEO_ROOT.mkdir(parents=True,exist_ok=True)
@@ -125,6 +128,12 @@ def queue_video_job(command, artifact, run_id):
                         "mp4_validation_status":"passed" if finish.get("ok") else "failed",
                         "obsidian_export_status":obsidian_export.get("status"),"human_review_required":True}})
             RUNS.setdefault(run_id,{})["video_job_id"]=job_id
+            try:
+                queue_local_integration(job_id, command, RUNS.get(run_id,{}).get("artifact",""), finish)
+                job["metrics"]["local_integration_status"]="queued"
+            except Exception as bridge_error:
+                job["metrics"]["local_integration_status"]="queue_failed"
+                print("LOCAL_INTEGRATION_QUEUE_ERROR",str(bridge_error)[:300],flush=True)
             RUNS[run_id]["video"]=finish
             print("VIDEO_RENDER_COMPLETED",json.dumps({"job_id":job_id,"filename":finish.get("filename"),"duration_seconds":finish.get("duration_seconds"),"audio_mode":finish.get("audio_mode"),"narration_verified":finish.get("narration_verified"),"elapsed_seconds":round(time.time()-started,1)},ensure_ascii=False),flush=True)
         except Exception as e:
@@ -135,8 +144,21 @@ def queue_video_job(command, artifact, run_id):
     VIDEO_EXECUTOR.submit(worker)
     return job_id
 
+def integration_authorized(h):
+    expected=INTEGRATION_BRIDGE_TOKEN
+    supplied=h.headers.get("Authorization","")
+    return bool(expected) and supplied=="Bearer "+expected
+
+def queue_local_integration(job_id, command, artifact, video):
+    # Local AI/Obsidian companion is opt-in and cannot execute remote shell commands.
+    task={"job_id":job_id,"command":str(command)[:500],"artifact":str(artifact)[:16000],
+          "video_url":video_file_url(video.get("filename")) if video.get("filename") else None,
+          "created_at":datetime.now(timezone.utc).isoformat(),"status":"queued"}
+    INTEGRATION_QUEUE.append(task)
+    print("LOCAL_INTEGRATION_QUEUED",json.dumps({"job_id":job_id,"queue_length":len(INTEGRATION_QUEUE)},ensure_ascii=False),flush=True)
+
 def cors(h):
- h.send_header("Access-Control-Allow-Origin","*");h.send_header("Access-Control-Allow-Headers","Content-Type,X-Self-Test-Token");h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
+ h.send_header("Access-Control-Allow-Origin","*");h.send_header("Access-Control-Allow-Headers","Content-Type,X-Self-Test-Token,Authorization");h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
 
 def reply(h,c,o):
     """Send JSON without turning a client disconnect into an application error.
@@ -615,6 +637,22 @@ class Handler(BaseHTTPRequestHandler):
    job=VIDEO_JOBS.get(job_id)
    if not job: reply(self,404,{"ok":False,"error":"video_job_not_found"});return
    reply(self,200,{"ok":True,"job":job});return
+  if self.path.startswith("/integration/next"):
+   if not INTEGRATION_BRIDGE_TOKEN:
+    reply(self,503,{"ok":False,"error":"integration_bridge_disabled"});return
+   if not integration_authorized(self):
+    reply(self,401,{"ok":False,"error":"integration_bridge_unauthorized"});return
+   task=INTEGRATION_QUEUE.pop(0) if INTEGRATION_QUEUE else None
+   if task:
+    task["status"]="claimed"
+    INTEGRATION_RESULTS[task["job_id"]]={"status":"running","claimed_at":datetime.now(timezone.utc).isoformat()}
+   reply(self,200,{"ok":True,"task":task});return
+  if self.path.startswith("/integration/status/"):
+   job_id=urllib.parse.unquote(self.path[len("/integration/status/"):]).split("?")[0]
+   if not job_id or "/" in job_id:
+    reply(self,404,{"ok":False,"error":"invalid_integration_job_id"});return
+   result=INTEGRATION_RESULTS.get(job_id)
+   reply(self,200,{"ok":True,"result":result or {"status":"not_queued"}});return
   if self.path.startswith("/health"):
    reply(self,200,{"ok":True,"version":VERSION,"service":"secret-base-optimal-api","ai_configured":bool(KEY or ALT_TOKEN),"openai_configured":bool(KEY),"alternate_configured":bool(ALT_TOKEN),"self_test_configured":bool(SELF_TEST_TOKEN),"model":MODEL,"alternate_model":ALT_MODEL,"agent_count":11,"mode":"real-agent-with-fallback","video_engine":video_engine_health(),"video_background_jobs":True,"run_background_jobs":True,"benchmark":REFERENCE_BENCHMARK})
   elif self.path.startswith("/learning"):reply(self,200,{"ok":True,"items":LEARNING[-50:]})
@@ -626,6 +664,32 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   try:
    n=int(self.headers.get("Content-Length","0"));d=json.loads(self.rfile.read(n) or b"{}")
+   if self.path=="/integration/result":
+    if not INTEGRATION_BRIDGE_TOKEN:
+     reply(self,503,{"ok":False,"error":"integration_bridge_disabled"});return
+    if not integration_authorized(self):
+     reply(self,401,{"ok":False,"error":"integration_bridge_unauthorized"});return
+    job_id=str(d.get("job_id","")).strip()
+    if not job_id or len(job_id)>80 or "/" in job_id or "\\\\" in job_id:
+     reply(self,400,{"ok":False,"error":"invalid_job_id"});return
+    allowed={"job_id","claude","images","obsidian","local_artifact_dir","human_review_required","mp4_updated_with_ai_images"}
+    result={k:d.get(k) for k in allowed if k in d}
+    result["status"]="completed"
+    result["received_at"]=datetime.now(timezone.utc).isoformat()
+    INTEGRATION_RESULTS[job_id]=result
+    job=VIDEO_JOBS.get(job_id)
+    if job:
+     metrics=dict(job.get("metrics") or {})
+     metrics.update({"claude_code_status":(d.get("claude") or {}).get("status","unknown"),
+       "ai_image_provider_status":(d.get("images") or {}).get("status","unknown"),
+       "ai_images_created":int((d.get("images") or {}).get("count",0) or len((d.get("images") or {}).get("images",[]))),
+       "obsidian_export_status":(d.get("obsidian") or {}).get("status","unknown"),
+       "mp4_updated_with_ai_images":bool(d.get("mp4_updated_with_ai_images",False)),
+       "human_review_required":True})
+     job["metrics"]=metrics
+     job["local_integrations"]=result
+     job["message"]="ローカル連携結果を受信しました。AI画像のMP4反映は別途確認が必要です。"
+    reply(self,200,{"ok":True,"stored":True,"human_review_required":True});return
    if self.path=="/video-engine":
     reply(self,200,{"ok":True,"engine":video_engine_health(),"cost_policy":{"external_saas":False,"paid_execution":False,"human_approval_required":True}});return
    if self.path=="/video-package":
