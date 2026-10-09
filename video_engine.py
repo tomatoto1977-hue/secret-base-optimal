@@ -218,8 +218,14 @@ def render(package, output_path=None):
 
     command = _clean(package.get("command",""))
     artifact = str(package.get("production_spec","") or package.get("artifact",""))
-    chunks = _scene_text(artifact, command)
     narration_text = _extract_narration(artifact)
+    if len(narration_text) < 80:
+        return {"ok":False,"status":"narration_script_missing",
+                "error":"独立した【ナレーション】ブロック（80文字以上）がありません。企画書を読み上げる動画は生成せず、安全停止しました。",
+                "script_status":"failed","ai_images_generated":False}
+    chunks = _scene_text(artifact, command)
+    if not chunks:
+        return {"ok":False,"status":"scene_plan_missing","error":"ナレーションからシーンを分割できませんでした。","script_status":"validated"}
     title = _clean(package.get("title") or command or "秘密基地")
     test_mode = bool(package.get("test_mode", False))
 
@@ -467,10 +473,6 @@ def render(package, output_path=None):
             return {"ok":False,"status":"bgm_generation_failed","engine":status}
 
         narration = work / "narration.mp3"
-        if len(narration_text) < 80:
-            return {"ok":False,"status":"narration_script_missing",
-                    "error":"独立した【ナレーション】ブロック（80文字以上）がありません。企画書を読み上げる動画は生成せず、安全停止しました。",
-                    "script_status":"failed","ai_images_generated":False}
         tts_result = _render_narration(narration_text,narration)
         if not tts_result.get("ok"):
             return {"ok":False,"status":"narration_generation_failed",
