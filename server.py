@@ -70,15 +70,21 @@ def queue_run_job(command, learning):
 
 def queue_video_job(command, artifact, run_id):
     job_id=str(uuid.uuid4())[:12]
-    VIDEO_JOBS[job_id]={"job_id":job_id,"run_id":run_id,"status":"queued","stage":"underground_queue","progress":0,"message":"地下制作室で動画仕上げを開始します。","created_at":datetime.now(timezone.utc).isoformat()}
+    VIDEO_JOBS[job_id]={"job_id":job_id,"run_id":run_id,"status":"queued","stage":"underground_queue","progress":0,"message":"地下制作室で動画仕上げを開始します。","created_at":datetime.now(timezone.utc).isoformat(),
+        "metrics":{"script_status":"pending","scene_plan_status":"pending","ai_images_expected":12,"ai_images_created":0,"vector_scenes_created":0,"narration_status":"pending","bgm_status":"pending","render_status":"pending","mp4_validation_status":"pending","obsidian_export_status":"pending","human_review_required":True}}
     def worker():
         job=VIDEO_JOBS.get(job_id)
         if not job:return
         started=time.time()
         print("VIDEO_JOB_STARTED",json.dumps({"job_id":job_id,"run_id":run_id,"command":str(command)[:180]},ensure_ascii=False),flush=True)
         try:
-            job.update({"status":"running","stage":"draft_render","progress":15,"message":"初版MP4を検証しながら生成中"})
-            print("VIDEO_RENDER_BEGIN",json.dumps({"job_id":job_id},ensure_ascii=False),flush=True)
+            narration_present=("【ナレーション】" in str(artifact) or "[NARRATION]" in str(artifact) or "NARRATION:" in str(artifact))
+            job.update({"status":"running","stage":"draft_render","progress":15,"message":"台本・素材・音声を実成果物として検証しながら生成中",
+                        "metrics":{"script_status":"validated" if narration_present else "failed","scene_plan_status":"pending",
+                        "ai_images_expected":12,"ai_images_created":0,"vector_scenes_created":0,
+                        "narration_status":"pending","bgm_status":"pending","render_status":"running",
+                        "mp4_validation_status":"pending","obsidian_export_status":"pending","human_review_required":True}})
+            print("VIDEO_RENDER_BEGIN",json.dumps({"job_id":job_id,"dedicated_narration":narration_present},ensure_ascii=False),flush=True)
             pkg=build_video_package(command,artifact); pkg["title"]=command[:80]
             draft=render_video_package(pkg,approved=True)
             if not draft.get("ok"):
@@ -96,7 +102,18 @@ def queue_video_job(command, artifact, run_id):
             finish["final_pass_reason"]="参考動画の最低ラインを満たす最終合格には、実写/生成ビジュアルとナレーションを含む人間確認が必要。自動仕上げ済みMP4は合格候補として提示する。"
             finish["auto_finish"]={"ok":True,"stages":["visual_motion","caption_contrast","audio_bed","scene_pacing","rights_safety","mp4_validation"],"human_approval_required":True}
             finish["url"]=video_file_url(finish.get("filename"))
-            job.update({"status":"completed","stage":"ready_for_review","progress":100,"message":"地下仕上げ完了。人間確認待ち。","video":finish})
+            finish["ai_images_generated"]=False
+            finish["image_status"]="not_implemented_vector_scenes_used"
+            finish["bgm_status"]="locally_synthesized_instrumental_bgm" if finish.get("bgm_details") else "unknown"
+            obsidian_export=write_obsidian_note(job_id,run_id,command,RUNS.get(run_id,{}).get("artifact",""),finish)
+            finish["obsidian_export"]=obsidian_export
+            job.update({"status":"completed","stage":"ready_for_review","progress":100,"message":"MP4技術検査完了。Obsidian用Markdownを出力しました。Vault同期とAI画像は未接続。人間確認待ち。","video":finish,
+                        "metrics":{"script_status":"validated" if finish.get("narration_verified") else "failed",
+                        "scene_plan_status":"basic_caption_beats_from_narration","ai_images_expected":12,"ai_images_created":0,
+                        "vector_scenes_created":int(finish.get("scene_count",0)),"narration_status":"verified" if finish.get("narration_verified") else "failed",
+                        "bgm_status":finish.get("bgm_status","unknown"),"render_status":"completed",
+                        "mp4_validation_status":"passed" if finish.get("ok") else "failed",
+                        "obsidian_export_status":obsidian_export.get("status"),"human_review_required":True}})
             RUNS.setdefault(run_id,{})["video_job_id"]=job_id
             RUNS[run_id]["video"]=finish
             print("VIDEO_RENDER_COMPLETED",json.dumps({"job_id":job_id,"filename":finish.get("filename"),"duration_seconds":finish.get("duration_seconds"),"audio_mode":finish.get("audio_mode"),"narration_verified":finish.get("narration_verified"),"elapsed_seconds":round(time.time()-started,1)},ensure_ascii=False),flush=True)
@@ -363,16 +380,21 @@ def run_video_pipeline_fast(command,learning):
     return artifact,trace,q
 
 def run_pipeline(command,learning):
+ # Video production must never disguise a fixed template as an AI-written script.
+ if is_video_request(command) and not (KEY or ALT_TOKEN):
+  raise RuntimeError("動画制作を停止しました：AI接続がありません。固定台本で代用せず、AI接続を確認してください。課金・有料APIへの自動切替は行っていません。")
  if is_video_request(command) and KEY and not ALT_TOKEN:
   return run_video_pipeline_fast(command,learning)
- # Prefer one integrated AI request. If the free provider rate-limits, fall back
- # to a clearly labeled local deterministic assembly so production does not stop.
+ # For video, rate limits are a hard stop: the renderer requires a real narration block.
  if ALT_TOKEN:
   try:
    return run_integrated_alt(command,learning)
   except Exception as e:
    msg=str(e)
    if "429" in msg or "Too Many Requests" in msg or "rate" in msg.lower():
+    if is_video_request(command):
+     print("VIDEO_AI_RATE_LIMIT_SAFE_STOP",msg[:500],flush=True)
+     raise RuntimeError("動画制作を安全停止しました：AIの利用上限／レート制限です。固定台本や企画書の読み上げで代用していません。時間をおいて再試行してください。")
     print("AI_RATE_LIMIT_LOCAL_FALLBACK",msg[:500],flush=True)
     return local_quota_fallback(command,learning)
    raise
@@ -409,6 +431,48 @@ def video_file_url(filename):
     name=os.path.basename(str(filename or ""))
     if not name or name != str(filename): return ""
     return "/video/"+urllib.parse.quote(name)
+
+def write_obsidian_note(job_id, run_id, command, artifact, video):
+    """Create an Obsidian-compatible Markdown export; this does not claim Vault sync."""
+    safe_id=re.sub(r"[^A-Za-z0-9_-]","",str(job_id))[:40] or str(uuid.uuid4())[:8]
+    path=VIDEO_ROOT / ("制作記録_"+safe_id+".md")
+    now=datetime.now(timezone.utc).isoformat()
+    mp4_url=video_file_url(video.get("filename",""))
+    narration=""
+    raw=str(artifact or "")
+    for marker in ("【ナレーション】","[NARRATION]","NARRATION:"):
+        if marker in raw:
+            narration=raw.split(marker,1)[1]
+            for stop in ("【","[/NARRATION]","[CAPTIONS]"):
+                if stop in narration: narration=narration.split(stop,1)[0]
+            break
+    content=(
+        "---\n"
+        "type: secret-base-video-production\n"
+        "job_id: "+safe_id+"\n"
+        "run_id: "+str(run_id or "")+"\n"
+        "created_at: "+now+"\n"
+        "status: human_review_required\n"
+        "ai_images_generated: false\n"
+        "external_posting: false\n"
+        "---\n\n"
+        "# 動画制作記録\n\n"
+        "- テーマ・依頼: "+str(command).replace("\n"," ")+"\n"
+        "- ジョブID: "+safe_id+"\n"
+        "- MP4: "+(mp4_url or "出力リンク未生成")+"\n"
+        "- 尺: "+str(video.get("duration_seconds","未確認"))+" 秒\n"
+        "- 解像度: 1080×1920（検査結果を要確認）\n"
+        "- ナレーション: "+("生成済み" if video.get("narration_verified") else "未確認")+"\n"
+        "- BGM: "+str((video.get("bgm_details") or {}).get("type","ローカル合成BGM"))+"\n"
+        "- AI生成画像: 未実装（現在はローカル生成のベクター素材）\n"
+        "- 最終合格: 未判定。人間確認が必要\n"
+        "- Obsidian: このMarkdownはダウンロード用。Vaultへの自動同期は未接続\n\n"
+        "## ナレーション台本\n\n"+(narration.strip() or "専用ナレーションブロックを取得できませんでした。")+"\n\n"
+        "## 生成仕様・監査メモ\n\n"+raw+"\n"
+    )
+    path.write_text(content,encoding="utf-8")
+    return {"filename":path.name,"url":"/obsidian/"+urllib.parse.quote(path.name),
+            "status":"downloadable_markdown_not_vault_sync","path":str(path)}
 
 def is_video_request(command):
     c=str(command or "").lower()
@@ -515,6 +579,19 @@ class Handler(BaseHTTPRequestHandler):
       self.wfile.write(chunk);remaining-=len(chunk)
    except (BrokenPipeError,ConnectionResetError): pass
    except Exception as e: print("VIDEO_SERVE_ERROR",json.dumps({"name":name,"error":str(e)},ensure_ascii=False),flush=True)
+   return
+  if self.path.startswith("/obsidian/"):
+   name=urllib.parse.unquote(self.path[len("/obsidian/"):]).split("?")[0]
+   if not name or os.path.basename(name)!=name or not name.endswith(".md"):
+    reply(self,404,{"ok":False,"error":"invalid_obsidian_export_name"});return
+   path=VIDEO_ROOT / name
+   if not path.is_file(): reply(self,404,{"ok":False,"error":"obsidian_export_not_found"});return
+   try:
+    data=path.read_bytes()
+    self.send_response(200);cors(self);self.send_header("Content-Type","text/markdown; charset=utf-8")
+    self.send_header("Content-Length",str(len(data)));self.send_header("Content-Disposition",'attachment; filename="'+path.name+'"')
+    self.end_headers();self.wfile.write(data)
+   except (BrokenPipeError,ConnectionResetError): pass
    return
   if self.path.startswith("/run-job/"):
    job_id=urllib.parse.unquote(self.path[len("/run-job/"):]).split("?")[0]
