@@ -108,7 +108,7 @@ def test_progress_metrics_do_not_claim_ai_images_exist():
     server=(ROOT/"server.py").read_text(encoding="utf-8")
     engine=(ROOT/"video_engine.py").read_text(encoding="utf-8")
     assert '"ai_images_created":0' in server
-    assert '"ai_images_generated":False' in server
+    assert 'finish["ai_images_generated"]=False' in server
     assert '"ai_images_generated":False' in engine
 
 def test_video_generation_keeps_run_locked_until_background_job_finishes():
