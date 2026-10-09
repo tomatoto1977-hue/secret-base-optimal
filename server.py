@@ -484,7 +484,7 @@ class Handler(BaseHTTPRequestHandler):
     start_byte,end_byte=0,size-1;status=200
     rng=self.headers.get("Range","")
     if rng:
-     m=re.match(r"bytes=(\\d*)-(\\d*)$",rng.strip())
+     m=re.match(r"bytes=(\d*)-(\d*)$",rng.strip())
      if not m:
       self.send_response(416);cors(self);self.send_header("Content-Range",f"bytes */{size}");self.end_headers();return
      a,b=m.groups()
