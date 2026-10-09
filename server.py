@@ -612,5 +612,10 @@ def background_video_self_test():
 
 httpd=ThreadingHTTPServer(("0.0.0.0",PORT),Handler)
 import threading as _threading
-_threading.Thread(target=background_video_self_test,daemon=True).start()
+# Full FFmpeg/TTS render tests are opt-in. Running them on every deploy
+# competes with real jobs and can delay video production on the free instance.
+if os.environ.get("RUN_VIDEO_SELF_TEST_ON_START","false").lower()=="true":
+ _threading.Thread(target=background_video_self_test,daemon=True).start()
+else:
+ print("VIDEO_ENGINE_SELF_TEST_SKIPPED",json.dumps({"reason":"opt_in_only","hint":"Set RUN_VIDEO_SELF_TEST_ON_START=true for an explicit diagnostic run."}),flush=True)
 httpd.serve_forever()
